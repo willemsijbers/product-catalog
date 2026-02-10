@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,6 +23,8 @@ export default function CreateProductPage() {
   });
 
   const [expandedLines, setExpandedLines] = useState<Set<number>>(new Set());
+  const [productCodeExists, setProductCodeExists] = useState(false);
+  const [checkingProductCode, setCheckingProductCode] = useState(false);
 
   // Helper functions for display formatting
   const formatPriceModel = (priceModel: string) => {
@@ -37,6 +39,39 @@ export default function CreateProductPage() {
     if (unit === 'apiCall') return 'API Call';
     return unit.charAt(0).toUpperCase() + unit.slice(1);
   };
+
+  // Check if product code exists
+  const checkProductCode = async (code: string) => {
+    if (!code || code.length < 2) {
+      setProductCodeExists(false);
+      return;
+    }
+
+    setCheckingProductCode(true);
+    try {
+      const response = await fetch(`http://localhost:3000/api/products`);
+      if (response.ok) {
+        const products = await response.json();
+        const exists = products.some((p: any) => p.productCode.toLowerCase() === code.toLowerCase());
+        setProductCodeExists(exists);
+      }
+    } catch (error) {
+      console.error('Error checking product code:', error);
+    } finally {
+      setCheckingProductCode(false);
+    }
+  };
+
+  // Debounced product code check
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (product.productCode) {
+        checkProductCode(product.productCode);
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [product.productCode]);
 
   const addProductLine = () => {
     setProduct({
@@ -203,7 +238,16 @@ export default function CreateProductPage() {
       console.log('Response:', data);
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create product');
+        // Parse error message for better user feedback
+        let errorMessage = data.error || 'Failed to create product';
+
+        if (errorMessage.includes('UNIQUE constraint failed: Product.productCode')) {
+          errorMessage = `Product code "${product.productCode}" already exists. Please use a different product code.`;
+        } else if (errorMessage.includes('UNIQUE constraint failed')) {
+          errorMessage = 'A duplicate value was detected. Please check your input and try again.';
+        }
+
+        throw new Error(errorMessage);
       }
 
       alert(`Product created successfully!\n\nProduct Number: ${data.productNumber}\nProduct Lines: ${data.productLines?.length || 0} created`);
@@ -212,7 +256,8 @@ export default function CreateProductPage() {
       router.push('/products');
     } catch (error) {
       console.error('Error creating product:', error);
-      alert(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      alert(`Failed to create product:\n\n${errorMessage}`);
     }
   };
 
@@ -250,7 +295,17 @@ export default function CreateProductPage() {
                   onChange={(e) => setProduct({ ...product, productCode: e.target.value })}
                   placeholder="PROD-001"
                   required
+                  className={productCodeExists ? 'border-red-500 focus-visible:ring-red-500' : ''}
                 />
+                {checkingProductCode && (
+                  <p className="text-xs text-muted-foreground">Checking availability...</p>
+                )}
+                {productCodeExists && !checkingProductCode && (
+                  <p className="text-xs text-red-500">⚠️ This product code already exists. Please choose a different one.</p>
+                )}
+                {!productCodeExists && !checkingProductCode && product.productCode.length >= 2 && (
+                  <p className="text-xs text-green-600">✓ Product code is available</p>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="name">Product Name *</Label>
@@ -1196,7 +1251,11 @@ export default function CreateProductPage() {
           >
             Cancel
           </Button>
-          <Button type="submit" className="bg-primary hover:bg-primary/90">
+          <Button
+            type="submit"
+            className="bg-primary hover:bg-primary/90"
+            disabled={productCodeExists || checkingProductCode}
+          >
             Create Product
           </Button>
         </div>
