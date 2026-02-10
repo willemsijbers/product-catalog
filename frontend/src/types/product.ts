@@ -11,10 +11,12 @@ export type PriceModel =
   | 'rateCard';
 
 export type UsageType =
-  | 'allowance'
+  | 'PAYG'
+  | 'minimumCommit'
+  | 'prepaid'
   | 'consumption'
-  | 'overage'
-  | 'prepaid';
+  | 'allowance'
+  | 'overage';
 
 export type Term = 'daily' | 'monthly' | 'quarterly' | 'annually';
 
@@ -62,6 +64,8 @@ export interface CreateProductInput {
   description?: string;
   effectiveStartDate: string;
   effectiveEndDate?: string;
+  productFamily?: 'software' | 'hardware' | 'service' | 'bundle' | 'other';
+  productType?: 'sub' | 'perpetual' | 'consumption' | 'other';
   productLines: CreateProductLineInput[];
 }
 
@@ -69,14 +73,25 @@ export interface CreateProductLineInput {
   name: string;
   lineType: LineType;
   priceModel: PriceModel;
+  pricingTerm?: Term; // For recurring lines, "once" for one-time
+  unitOfMeasure?: string; // For recurring and one-time lines
   hasUsage?: boolean;
   parentLine?: string;
+  usageLine?: { // Nested usage line config when hasUsage is true
+    name: string;
+    priceModel: 'rateCard';
+    rateCardEntries?: CreateRateCardEntryInput[];
+  };
   rateCardEntries?: CreateRateCardEntryInput[];
 }
 
 export interface CreateRateCardEntryInput {
   usageType: UsageType;
   identifier?: string;
+  usageUnitOfMeasure?: string;
+  billableUnitOfMeasure?: string;
+  invoiceFrequency?: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annually';
+  priceModel?: 'perUnit' | 'tiered' | 'volume' | 'stairstep';
   conversion?: number;
   allowance?: number;
   term?: Term;

@@ -34,10 +34,22 @@ router.get('/products', (req, res) => {
 });
 
 router.get('/products/:productNumber', (req, res) => {
-    req.models.product.getById(req.params.productNumber, (err, row) => {
+    req.models.product.getById(req.params.productNumber, (err, product) => {
         if (err) return res.status(500).json({ error: err.message });
-        if (!row) return res.status(404).json({ error: 'Product not found' });
-        res.json(row);
+        if (!product) return res.status(404).json({ error: 'Product not found' });
+
+        // Fetch product lines for this product
+        const db = req.app.get('db');
+        const sql = 'SELECT * FROM ProductLine WHERE productNumber = ? ORDER BY productLineNumber';
+        db.all(sql, [req.params.productNumber], (err, productLines) => {
+            if (err) return res.status(500).json({ error: err.message });
+
+            // Return product with its product lines
+            res.json({
+                ...product,
+                productLines: productLines || []
+            });
+        });
     });
 });
 
@@ -74,7 +86,7 @@ router.delete('/products/:productNumber', (req, res) => {
 
 // ===== PRODUCT + PRODUCT LINES BATCH CREATE =====
 router.post('/products/batch', (req, res) => {
-    const { productCode, name, description, effectiveStartDate, effectiveEndDate, productLines } = req.body;
+    const { productCode, name, description, effectiveStartDate, effectiveEndDate, productFamily, productType, productLines } = req.body;
 
     // Validate required fields
     if (!productCode || !name) {
@@ -97,8 +109,9 @@ router.post('/products/batch', (req, res) => {
             description,
             effectiveStartDate,
             effectiveEndDate,
-            productStatus: 'active',
-            isActive: 1
+            productFamily,
+            productType,
+            productStatus: 'active'
         };
 
         req.models.product.create(productData, (err) => {
@@ -131,9 +144,10 @@ router.post('/products/batch', (req, res) => {
                     name: line.name,
                     lineType: line.lineType,
                     priceModel: line.priceModel,
+                    pricingTerm: line.pricingTerm || null,
+                    unitOfMeasure: line.unitOfMeasure || null,
                     hasUsage: line.hasUsage ? 1 : 0,
-                    parentLine: null, // Will update in second pass if needed
-                    isActive: 1
+                    parentLine: null // Will update in second pass if needed
                 };
 
                 req.models.productLine.create(lineData, (err) => {
@@ -193,13 +207,73 @@ router.post('/products/batch', (req, res) => {
 
                         updatesCompleted++;
                         if (updatesCompleted === linesToUpdate.length && !hasError) {
-                            db.run('COMMIT');
-                            res.status(201).json({
-                                productNumber,
-                                productLines: Object.values(lineNumberMap),
-                                message: 'Product and product lines created successfully'
-                            });
+                            createRateCardEntries();
                         }
+                    });
+                });
+            }
+
+            // Third pass: create rate card entries for usage lines
+            function createRateCardEntries() {
+                const linesWithRateCards = productLines
+                    .map((line, index) => ({ line, index }))
+                    .filter(({ line }) => line.rateCardEntries && line.rateCardEntries.length > 0);
+
+                if (linesWithRateCards.length === 0) {
+                    db.run('COMMIT');
+                    return res.status(201).json({
+                        productNumber,
+                        productLines: Object.values(lineNumberMap),
+                        message: 'Product and product lines created successfully'
+                    });
+                }
+
+                let rateCardCompleted = 0;
+                let totalRateCards = 0;
+
+                // Count total rate cards to create
+                linesWithRateCards.forEach(({ line }) => {
+                    totalRateCards += line.rateCardEntries.length;
+                });
+
+                linesWithRateCards.forEach(({ line, index }) => {
+                    const productLineNumber = lineNumberMap[`line-${index}`];
+
+                    line.rateCardEntries.forEach((entry, entryIndex) => {
+                        const rateCardEntryNumber = `${productLineNumber}-RC-${entryIndex + 1}`;
+                        const rateCardData = {
+                            rateCardEntryNumber,
+                            productLineNumber,
+                            usageType: entry.usageType,
+                            identifier: entry.identifier || null,
+                            conversion: entry.conversion || null,
+                            allowance: entry.allowance || null,
+                            term: entry.term || null,
+                            rollover: entry.rollover ? 1 : 0,
+                            rolloverDuration: entry.rolloverDuration || null,
+                            maximumRolloverLimit: entry.maximumRolloverLimit || null,
+                            expiration: entry.expiration || null,
+                        };
+
+                        req.models.rateCardEntry.create(rateCardData, (err) => {
+                            if (err && !hasError) {
+                                hasError = true;
+                                db.run('ROLLBACK');
+                                return res.status(400).json({
+                                    error: `Failed to create rate card entry: ${err.message}`
+                                });
+                            }
+
+                            rateCardCompleted++;
+                            if (rateCardCompleted === totalRateCards && !hasError) {
+                                db.run('COMMIT');
+                                res.status(201).json({
+                                    productNumber,
+                                    productLines: Object.values(lineNumberMap),
+                                    message: 'Product, product lines, and rate cards created successfully'
+                                });
+                            }
+                        });
                     });
                 });
             }
