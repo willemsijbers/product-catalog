@@ -14,6 +14,7 @@ interface ProductLine {
   productLineNumber: string;
   name: string;
   lineType: string;
+  priceModel: string;
   hasUsage: boolean;
   rateCardEntries?: RateCardEntry[];
 }
@@ -111,6 +112,7 @@ export default function ProductPricingPage() {
           productLineNumber: line.productLineNumber,
           name: line.name,
           lineType: line.lineType as 'oneTime' | 'recurring',
+          priceModel: line.priceModel,
         });
       }
 
@@ -125,6 +127,7 @@ export default function ProductPricingPage() {
               usageType: entry.usageType as 'PAYG' | 'prepaid' | 'overage',
               rateCardEntryNumber: entry.rateCardEntryNumber,
               unitOfMeasure: entry.usageUnitOfMeasure,
+              priceModel: 'rateCard', // Usage lines always use rate card
             });
           }
         });
@@ -149,6 +152,23 @@ export default function ProductPricingPage() {
     if (lineType === 'recurring') return 'Recurring';
     if (lineType === 'usage') return 'Usage';
     return lineType;
+  };
+
+  // Check if an item supports tiered pricing
+  const supportsTieredPricing = (item: PriceableItem): boolean => {
+    const tieredPriceModels = ['tiered', 'volume', 'stairstep'];
+
+    // Recurring lines with tiered price models
+    if (item.lineType === 'recurring' && tieredPriceModels.includes(item.priceModel || '')) {
+      return true;
+    }
+
+    // Overage usage type (always supports tiers regardless of price model)
+    if (item.lineType === 'usage' && item.usageType === 'overage') {
+      return true;
+    }
+
+    return false;
   };
 
   const addPriceConfiguration = () => {
@@ -534,62 +554,80 @@ export default function ProductPricingPage() {
                           {selectedConfigs.filter(c => c.priceBookId).map((config, idx) => {
                             const priceKey = getPriceKey(itemId, config.priceBookId, config.currency);
                             const tiers = getTiers(itemId, config.priceBookId, config.currency);
-                            const isExpanded = expandedCells.has(priceKey);
+                            const canHaveTiers = supportsTieredPricing(item);
 
                             return (
                               <td key={idx} className="p-3 align-top">
                                 <div className="space-y-2">
-                                  {tiers.map((tier, tierIndex) => (
-                                    <div key={tierIndex} className="flex items-center gap-2">
-                                      {tiers.length > 1 && (
-                                        <Input
-                                          type="number"
-                                          min="0"
-                                          placeholder="From"
-                                          value={tier.fromQuantity}
-                                          onChange={(e) => updateTier(itemId, config.priceBookId, config.currency, tierIndex, 'fromQuantity', e.target.value)}
-                                          disabled={!isSelected}
-                                          className="h-8 w-20 text-xs"
-                                        />
-                                      )}
-                                      <div className="flex items-center gap-1 flex-1">
-                                        <span className="text-xs text-muted-foreground">{config.currency}</span>
-                                        <Input
-                                          type="number"
-                                          step="0.01"
-                                          min="0"
-                                          placeholder="0.00"
-                                          value={tier.listPrice}
-                                          onChange={(e) => updateTier(itemId, config.priceBookId, config.currency, tierIndex, 'listPrice', e.target.value)}
-                                          disabled={!isSelected}
-                                          className="h-8 flex-1"
-                                        />
-                                      </div>
-                                      {tiers.length > 1 && (
+                                  {canHaveTiers ? (
+                                    <>
+                                      {tiers.map((tier, tierIndex) => (
+                                        <div key={tierIndex} className="flex items-center gap-2">
+                                          {tiers.length > 1 && (
+                                            <Input
+                                              type="number"
+                                              min="0"
+                                              placeholder="From"
+                                              value={tier.fromQuantity}
+                                              onChange={(e) => updateTier(itemId, config.priceBookId, config.currency, tierIndex, 'fromQuantity', e.target.value)}
+                                              disabled={!isSelected}
+                                              className="h-8 w-20 text-xs"
+                                            />
+                                          )}
+                                          <div className="flex items-center gap-1 flex-1">
+                                            <span className="text-xs text-muted-foreground">{config.currency}</span>
+                                            <Input
+                                              type="number"
+                                              step="0.01"
+                                              min="0"
+                                              placeholder="0.00"
+                                              value={tier.listPrice}
+                                              onChange={(e) => updateTier(itemId, config.priceBookId, config.currency, tierIndex, 'listPrice', e.target.value)}
+                                              disabled={!isSelected}
+                                              className="h-8 flex-1"
+                                            />
+                                          </div>
+                                          {tiers.length > 1 && (
+                                            <Button
+                                              type="button"
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => removeTier(itemId, config.priceBookId, config.currency, tierIndex)}
+                                              disabled={!isSelected}
+                                              className="h-8 w-8 p-0"
+                                            >
+                                              <Trash2 className="w-3 h-3 text-destructive" />
+                                            </Button>
+                                          )}
+                                        </div>
+                                      ))}
+                                      {isSelected && (
                                         <Button
                                           type="button"
-                                          variant="ghost"
+                                          variant="outline"
                                           size="sm"
-                                          onClick={() => removeTier(itemId, config.priceBookId, config.currency, tierIndex)}
-                                          disabled={!isSelected}
-                                          className="h-8 w-8 p-0"
+                                          onClick={() => addTier(itemId, config.priceBookId, config.currency)}
+                                          className="h-7 text-xs w-full"
                                         >
-                                          <Trash2 className="w-3 h-3 text-destructive" />
+                                          <Plus className="w-3 h-3 mr-1" />
+                                          Add Tier
                                         </Button>
                                       )}
+                                    </>
+                                  ) : (
+                                    <div className="flex items-center gap-1">
+                                      <span className="text-xs text-muted-foreground">{config.currency}</span>
+                                      <Input
+                                        type="number"
+                                        step="0.01"
+                                        min="0"
+                                        placeholder="0.00"
+                                        value={tiers[0]?.listPrice || ''}
+                                        onChange={(e) => updateTier(itemId, config.priceBookId, config.currency, 0, 'listPrice', e.target.value)}
+                                        disabled={!isSelected}
+                                        className="h-8 flex-1"
+                                      />
                                     </div>
-                                  ))}
-                                  {isSelected && (
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => addTier(itemId, config.priceBookId, config.currency)}
-                                      className="h-7 text-xs w-full"
-                                    >
-                                      <Plus className="w-3 h-3 mr-1" />
-                                      Add Tier
-                                    </Button>
                                   )}
                                 </div>
                               </td>

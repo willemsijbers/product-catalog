@@ -35,6 +35,7 @@ export interface PriceableItem {
   productLineNumber: string;
   name: string;
   lineType: 'oneTime' | 'recurring' | 'usage';
+  priceModel?: string;
   usageType?: 'PAYG' | 'prepaid' | 'overage';
   rateCardEntryNumber?: string;
   unitOfMeasure?: string;

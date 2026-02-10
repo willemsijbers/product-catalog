@@ -546,7 +546,7 @@ export default function CreateProductPage() {
                                       <SelectItem value="perUnit">Per Unit</SelectItem>
                                       <SelectItem value="tiered">Tiered</SelectItem>
                                       <SelectItem value="volume">Volume</SelectItem>
-                                      <SelectItem value="rateCard">Rate Card</SelectItem>
+                                      <SelectItem value="stairstep">Stairstep</SelectItem>
                                     </SelectContent>
                                   </Select>
                                 )}
@@ -941,14 +941,6 @@ export default function CreateProductPage() {
                                         onChange={(e) => updateUsageLine(index, 'name', e.target.value)}
                                         placeholder="Storage Overage Charges"
                                       />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-4 text-xs text-muted-foreground">
-                                      <div>
-                                        <span className="font-medium">Pricing Term:</span> N/A
-                                      </div>
-                                      <div>
-                                        <span className="font-medium">Price Model:</span> Rate Card
-                                      </div>
                                     </div>
 
                                     {/* Rate Card Entries */}
