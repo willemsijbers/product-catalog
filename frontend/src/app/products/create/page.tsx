@@ -915,7 +915,7 @@ export default function CreateProductPage() {
                                   className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
                                 />
                                 <Label htmlFor={`has-usage-${index}`} className="font-medium">
-                                  Has Usage Component (Commit/Overage)
+                                  Has Usage Component
                                 </Label>
                               </div>
                               <p className="text-xs text-muted-foreground ml-6">
