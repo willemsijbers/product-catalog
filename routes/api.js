@@ -44,10 +44,32 @@ router.get('/products/:productNumber', (req, res) => {
         db.all(sql, [req.params.productNumber], (err, productLines) => {
             if (err) return res.status(500).json({ error: err.message });
 
-            // Return product with its product lines
-            res.json({
-                ...product,
-                productLines: productLines || []
+            if (!productLines || productLines.length === 0) {
+                return res.json({
+                    ...product,
+                    productLines: []
+                });
+            }
+
+            // Fetch rate card entries for each product line
+            let completed = 0;
+            const linesWithRateCards = productLines.map(line => ({ ...line, rateCardEntries: [] }));
+
+            productLines.forEach((line, index) => {
+                const rateCardSql = 'SELECT * FROM RateCardEntry WHERE productLineId = ? ORDER BY rateCardEntryNumber';
+                db.all(rateCardSql, [line.productLineNumber], (err, rateCards) => {
+                    if (!err && rateCards) {
+                        linesWithRateCards[index].rateCardEntries = rateCards;
+                    }
+
+                    completed++;
+                    if (completed === productLines.length) {
+                        res.json({
+                            ...product,
+                            productLines: linesWithRateCards
+                        });
+                    }
+                });
             });
         });
     });

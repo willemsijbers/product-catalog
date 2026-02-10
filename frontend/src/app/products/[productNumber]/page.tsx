@@ -18,6 +18,23 @@ interface Product {
   productStatus: string;
 }
 
+interface RateCardEntry {
+  rateCardEntryNumber: string;
+  usageType: string;
+  identifier?: string;
+  usageUnitOfMeasure?: string;
+  billableUnitOfMeasure?: string;
+  invoiceFrequency?: string;
+  priceModel?: string;
+  conversion?: number;
+  allowance?: number;
+  term?: string;
+  rollover?: number;
+  rolloverDuration?: number;
+  maximumRolloverLimit?: number;
+  expiration?: number;
+}
+
 interface ProductLine {
   productLineNumber: string;
   name: string;
@@ -27,6 +44,7 @@ interface ProductLine {
   unitOfMeasure?: string;
   hasUsage: boolean;
   parentLine?: string;
+  rateCardEntries?: RateCardEntry[];
 }
 
 interface ProductDetail extends Product {
@@ -262,6 +280,84 @@ export default function ProductDetailPage() {
                       <p className="text-sm text-muted-foreground">
                         Linked to parent line: <span className="font-mono">{line.parentLine}</span>
                       </p>
+                    </div>
+                  )}
+                  {line.rateCardEntries && line.rateCardEntries.length > 0 && (
+                    <div className="mt-3 pt-3 border-t">
+                      <h5 className="text-sm font-semibold mb-3">Rate Card Entries ({line.rateCardEntries.length})</h5>
+                      <div className="space-y-2">
+                        {line.rateCardEntries.map((entry, idx) => (
+                          <div key={entry.rateCardEntryNumber} className="bg-muted/30 rounded p-3 text-xs">
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                              <div>
+                                <p className="text-muted-foreground mb-0.5">Usage Type</p>
+                                <p className="font-medium capitalize">
+                                  {entry.usageType === 'PAYG' ? 'PAYG' : entry.usageType === 'minimumCommit' ? 'Minimum Commit' : entry.usageType}
+                                </p>
+                              </div>
+                              {entry.identifier && (
+                                <div>
+                                  <p className="text-muted-foreground mb-0.5">Identifier</p>
+                                  <p className="font-medium font-mono">{entry.identifier}</p>
+                                </div>
+                              )}
+                              {entry.usageUnitOfMeasure && (
+                                <div>
+                                  <p className="text-muted-foreground mb-0.5">
+                                    {entry.usageType === 'PAYG' ? 'Unit of Measure' : 'Usage UoM'}
+                                  </p>
+                                  <p className="font-medium">{formatUnitOfMeasure(entry.usageUnitOfMeasure)}</p>
+                                </div>
+                              )}
+                              {entry.billableUnitOfMeasure && entry.usageType !== 'PAYG' && (
+                                <div>
+                                  <p className="text-muted-foreground mb-0.5">Billable UoM</p>
+                                  <p className="font-medium">{formatUnitOfMeasure(entry.billableUnitOfMeasure)}</p>
+                                </div>
+                              )}
+                              {entry.invoiceFrequency && (
+                                <div>
+                                  <p className="text-muted-foreground mb-0.5">Invoice Frequency</p>
+                                  <p className="font-medium capitalize">{entry.invoiceFrequency}</p>
+                                </div>
+                              )}
+                              {entry.priceModel && (
+                                <div>
+                                  <p className="text-muted-foreground mb-0.5">Price Model</p>
+                                  <p className="font-medium">{formatPriceModel(entry.priceModel)}</p>
+                                </div>
+                              )}
+                              {entry.conversion && (
+                                <div>
+                                  <p className="text-muted-foreground mb-0.5">Conversion</p>
+                                  <p className="font-medium">{entry.conversion}</p>
+                                </div>
+                              )}
+                              {entry.allowance && (
+                                <div>
+                                  <p className="text-muted-foreground mb-0.5">Allowance</p>
+                                  <p className="font-medium">{entry.allowance}</p>
+                                </div>
+                              )}
+                              {entry.term && (
+                                <div>
+                                  <p className="text-muted-foreground mb-0.5">Term</p>
+                                  <p className="font-medium capitalize">{entry.term}</p>
+                                </div>
+                              )}
+                              {entry.rollover === 1 && (
+                                <div>
+                                  <p className="text-muted-foreground mb-0.5">Rollover</p>
+                                  <p className="font-medium">
+                                    {entry.rolloverDuration && `${entry.rolloverDuration} periods`}
+                                    {entry.maximumRolloverLimit && ` (max: ${entry.maximumRolloverLimit})`}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>

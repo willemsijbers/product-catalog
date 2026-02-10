@@ -601,8 +601,6 @@ export default function CreateProductPage() {
                                               <SelectItem value="minimumCommit">Minimum Commit</SelectItem>
                                               <SelectItem value="prepaid">Prepaid</SelectItem>
                                               <SelectItem value="consumption">Consumption</SelectItem>
-                                              <SelectItem value="allowance">Allowance</SelectItem>
-                                              <SelectItem value="overage">Overage</SelectItem>
                                             </SelectContent>
                                           </Select>
                                         </div>
@@ -621,8 +619,8 @@ export default function CreateProductPage() {
                                             placeholder="billable-component-id"
                                           />
                                         </div>
-                                        {/* Conversion Factor - Hide for PAYG (no credits) */}
-                                        {entry.usageType !== 'PAYG' && (
+                                        {/* Conversion Factor - Hide for PAYG and allowance (no credits) */}
+                                        {entry.usageType !== 'PAYG' && entry.usageType !== 'allowance' && (
                                           <div className="space-y-1">
                                             <Label className="text-xs">Conversion Factor</Label>
                                             <Input
@@ -736,30 +734,40 @@ export default function CreateProductPage() {
                                             </div>
                                           </>
                                         )}
-                                        <div className="space-y-1">
-                                          <Label className="text-xs">Invoice Frequency</Label>
-                                          <Select
-                                            value={entry.invoiceFrequency || ''}
-                                            onValueChange={(value) => {
-                                              const updatedLines = [...product.productLines];
-                                              const entries = [...updatedLines[index].rateCardEntries!];
-                                              entries[entryIndex] = { ...entries[entryIndex], invoiceFrequency: value as any };
-                                              updatedLines[index].rateCardEntries = entries;
-                                              setProduct({ ...product, productLines: updatedLines });
-                                            }}
-                                          >
-                                            <SelectTrigger className="h-8 text-xs">
-                                              <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              <SelectItem value="daily">Daily</SelectItem>
-                                              <SelectItem value="weekly">Weekly</SelectItem>
-                                              <SelectItem value="monthly">Monthly</SelectItem>
-                                              <SelectItem value="quarterly">Quarterly</SelectItem>
-                                              <SelectItem value="annually">Annually</SelectItem>
-                                            </SelectContent>
-                                          </Select>
-                                        </div>
+                                        {/* Invoice Frequency - N/A for allowance (inherited from recurring line) */}
+                                        {entry.usageType === 'allowance' ? (
+                                          <div className="space-y-1">
+                                            <Label className="text-xs">Invoice Frequency</Label>
+                                            <div className="h-8 flex items-center text-xs text-muted-foreground px-3 border rounded-md bg-muted">
+                                              N/A
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <div className="space-y-1">
+                                            <Label className="text-xs">Invoice Frequency</Label>
+                                            <Select
+                                              value={entry.invoiceFrequency || ''}
+                                              onValueChange={(value) => {
+                                                const updatedLines = [...product.productLines];
+                                                const entries = [...updatedLines[index].rateCardEntries!];
+                                                entries[entryIndex] = { ...entries[entryIndex], invoiceFrequency: value as any };
+                                                updatedLines[index].rateCardEntries = entries;
+                                                setProduct({ ...product, productLines: updatedLines });
+                                              }}
+                                            >
+                                              <SelectTrigger className="h-8 text-xs">
+                                                <SelectValue placeholder="Select" />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="daily">Daily</SelectItem>
+                                                <SelectItem value="weekly">Weekly</SelectItem>
+                                                <SelectItem value="monthly">Monthly</SelectItem>
+                                                <SelectItem value="quarterly">Quarterly</SelectItem>
+                                                <SelectItem value="annually">Annually</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                        )}
                                         <div className="space-y-1">
                                           <Label className="text-xs">Price Model</Label>
                                           <Select
@@ -946,17 +954,20 @@ export default function CreateProductPage() {
                                                     placeholder="billable-component-id"
                                                   />
                                                 </div>
-                                                <div className="space-y-1">
-                                                  <Label className="text-xs">Conversion Factor</Label>
-                                                  <Input
-                                                    className="h-8 text-xs"
-                                                    type="number"
-                                                    step="0.01"
-                                                    value={entry.conversion || 1}
-                                                    onChange={(e) => updateRateCardEntry(index, entryIndex, 'conversion', parseFloat(e.target.value))}
-                                                    placeholder="1.0"
-                                                  />
-                                                </div>
+                                                {/* Conversion Factor - Hide for allowance (no credits) */}
+                                                {entry.usageType !== 'allowance' && (
+                                                  <div className="space-y-1">
+                                                    <Label className="text-xs">Conversion Factor</Label>
+                                                    <Input
+                                                      className="h-8 text-xs"
+                                                      type="number"
+                                                      step="0.01"
+                                                      value={entry.conversion || 1}
+                                                      onChange={(e) => updateRateCardEntry(index, entryIndex, 'conversion', parseFloat(e.target.value))}
+                                                      placeholder="1.0"
+                                                    />
+                                                  </div>
+                                                )}
                                                 <div className="space-y-1">
                                                   <Label className="text-xs">Usage Unit of Measure</Label>
                                                   <Select
@@ -1001,24 +1012,34 @@ export default function CreateProductPage() {
                                                     </SelectContent>
                                                   </Select>
                                                 </div>
-                                                <div className="space-y-1">
-                                                  <Label className="text-xs">Invoice Frequency</Label>
-                                                  <Select
-                                                    value={entry.invoiceFrequency || ''}
-                                                    onValueChange={(value) => updateRateCardEntry(index, entryIndex, 'invoiceFrequency', value as any)}
-                                                  >
-                                                    <SelectTrigger className="h-8 text-xs">
-                                                      <SelectValue placeholder="Select" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                      <SelectItem value="daily">Daily</SelectItem>
-                                                      <SelectItem value="weekly">Weekly</SelectItem>
-                                                      <SelectItem value="monthly">Monthly</SelectItem>
-                                                      <SelectItem value="quarterly">Quarterly</SelectItem>
-                                                      <SelectItem value="annually">Annually</SelectItem>
-                                                    </SelectContent>
-                                                  </Select>
-                                                </div>
+                                                {/* Invoice Frequency - N/A for allowance (inherited from recurring line) */}
+                                                {entry.usageType === 'allowance' ? (
+                                                  <div className="space-y-1">
+                                                    <Label className="text-xs">Invoice Frequency</Label>
+                                                    <div className="h-8 flex items-center text-xs text-muted-foreground px-3 border rounded-md bg-muted">
+                                                      N/A
+                                                    </div>
+                                                  </div>
+                                                ) : (
+                                                  <div className="space-y-1">
+                                                    <Label className="text-xs">Invoice Frequency</Label>
+                                                    <Select
+                                                      value={entry.invoiceFrequency || ''}
+                                                      onValueChange={(value) => updateRateCardEntry(index, entryIndex, 'invoiceFrequency', value as any)}
+                                                    >
+                                                      <SelectTrigger className="h-8 text-xs">
+                                                        <SelectValue placeholder="Select" />
+                                                      </SelectTrigger>
+                                                      <SelectContent>
+                                                        <SelectItem value="daily">Daily</SelectItem>
+                                                        <SelectItem value="weekly">Weekly</SelectItem>
+                                                        <SelectItem value="monthly">Monthly</SelectItem>
+                                                        <SelectItem value="quarterly">Quarterly</SelectItem>
+                                                        <SelectItem value="annually">Annually</SelectItem>
+                                                      </SelectContent>
+                                                    </Select>
+                                                  </div>
+                                                )}
                                                 <div className="space-y-1">
                                                   <Label className="text-xs">Price Model</Label>
                                                   <Select
