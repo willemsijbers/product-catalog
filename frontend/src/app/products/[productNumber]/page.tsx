@@ -187,10 +187,15 @@ export default function ProductDetailPage() {
                   {product.description || 'No description provided'}
                 </CardDescription>
               </div>
-              <Button variant="outline">
-                <Edit className="w-4 h-4 mr-2" />
-                Edit
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => router.push(`/products/${product.productNumber}/pricing`)}>
+                  Create Pricing
+                </Button>
+                <Button variant="outline">
+                  <Edit className="w-4 h-4 mr-2" />
+                  Edit
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>

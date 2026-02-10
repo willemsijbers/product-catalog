@@ -555,4 +555,113 @@ router.delete('/price-book-entries/:priceBookEntryNumber', (req, res) => {
     });
 });
 
+// ===== BATCH PRICING CREATION =====
+router.post('/pricing/batch', (req, res) => {
+    const { productNumber, validFrom, entries } = req.body;
+    const db = req.db;
+
+    if (!productNumber || !validFrom || !entries || entries.length === 0) {
+        return res.status(400).json({ error: 'Missing required fields' });
+    }
+
+    db.run('BEGIN TRANSACTION');
+
+    let hasError = false;
+    const headerMap = new Map(); // Key: productLineNumber|priceBookId|currency, Value: headerNumber
+
+    // Group entries by productLineNumber, priceBookId, and currency
+    const groupedEntries = {};
+    entries.forEach(entry => {
+        const key = `${entry.productLineNumber}|${entry.priceBookId}|${entry.currency}`;
+        if (!groupedEntries[key]) {
+            groupedEntries[key] = [];
+        }
+        groupedEntries[key].push(entry);
+    });
+
+    const headerKeys = Object.keys(groupedEntries);
+    let headersCreated = 0;
+    let entriesCreated = 0;
+    const totalEntries = entries.length;
+
+    // First pass: Create price book entry headers
+    headerKeys.forEach(key => {
+        const [productLineNumber, priceBookId, currency] = key.split('|');
+        const headerNumber = `H-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+
+        const headerData = {
+            headerNumber,
+            priceBookId,
+            productLineNumber,
+            currency,
+            validFrom,
+        };
+
+        req.models.priceBookEntryHeader.create(headerData, (err) => {
+            if (err && !hasError) {
+                hasError = true;
+                db.run('ROLLBACK');
+                return res.status(400).json({
+                    error: `Failed to create price book entry header: ${err.message}`
+                });
+            }
+
+            headerMap.set(key, headerNumber);
+            headersCreated++;
+
+            if (headersCreated === headerKeys.length && !hasError) {
+                createPriceEntries();
+            }
+        });
+    });
+
+    // Second pass: Create price book entries
+    function createPriceEntries() {
+        entries.forEach((entry, index) => {
+            const key = `${entry.productLineNumber}|${entry.priceBookId}|${entry.currency}`;
+            const headerNumber = headerMap.get(key);
+
+            if (!headerNumber) {
+                if (!hasError) {
+                    hasError = true;
+                    db.run('ROLLBACK');
+                    return res.status(400).json({
+                        error: 'Invalid header mapping'
+                    });
+                }
+                return;
+            }
+
+            const priceBookEntryNumber = `${headerNumber}-E-${index + 1}`;
+            const priceData = {
+                priceBookEntryNumber,
+                headerId: headerNumber,
+                listPrice: entry.listPrice,
+                fromQuantity: entry.fromQuantity || 0,
+                rateCardEntryId: entry.rateCardEntryId || null,
+            };
+
+            req.models.priceBookEntry.create(priceData, (err) => {
+                if (err && !hasError) {
+                    hasError = true;
+                    db.run('ROLLBACK');
+                    return res.status(400).json({
+                        error: `Failed to create price book entry: ${err.message}`
+                    });
+                }
+
+                entriesCreated++;
+                if (entriesCreated === totalEntries && !hasError) {
+                    db.run('COMMIT');
+                    res.status(201).json({
+                        message: 'Pricing created successfully',
+                        headersCreated: headerKeys.length,
+                        entriesCreated: totalEntries,
+                    });
+                }
+            });
+        });
+    }
+});
+
 module.exports = router;
