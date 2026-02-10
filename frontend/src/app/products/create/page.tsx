@@ -734,8 +734,8 @@ export default function CreateProductPage() {
                                             </div>
                                           </>
                                         )}
-                                        {/* Invoice Frequency - N/A for allowance (inherited from recurring line) */}
-                                        {entry.usageType === 'allowance' ? (
+                                        {/* Invoice Frequency - N/A for allowance and consumption (no invoicing) */}
+                                        {(entry.usageType === 'allowance' || entry.usageType === 'consumption') ? (
                                           <div className="space-y-1">
                                             <Label className="text-xs">Invoice Frequency</Label>
                                             <div className="h-8 flex items-center text-xs text-muted-foreground px-3 border rounded-md bg-muted">
@@ -1044,8 +1044,8 @@ export default function CreateProductPage() {
                                                     </div>
                                                   </>
                                                 )}
-                                                {/* Invoice Frequency - N/A for allowance (inherited from recurring line) */}
-                                                {entry.usageType === 'allowance' ? (
+                                                {/* Invoice Frequency - N/A for allowance and consumption (no invoicing) */}
+                                                {(entry.usageType === 'allowance' || entry.usageType === 'consumption') ? (
                                                   <div className="space-y-1">
                                                     <Label className="text-xs">Invoice Frequency</Label>
                                                     <div className="h-8 flex items-center text-xs text-muted-foreground px-3 border rounded-md bg-muted">
