@@ -265,10 +265,14 @@ router.post('/products/batch', (req, res) => {
                         const rateCardEntryNumber = `${productLineNumber}-RC-${entryIndex + 1}`;
                         const rateCardData = {
                             rateCardEntryNumber,
-                            productLineNumber,
+                            productLineId: productLineNumber,  // Fixed: was productLineNumber, should be productLineId
                             usageType: entry.usageType,
                             identifier: entry.identifier || null,
+                            usageUnitOfMeasure: entry.usageUnitOfMeasure || null,
                             conversion: entry.conversion || null,
+                            billableUnitOfMeasure: entry.billableUnitOfMeasure || null,
+                            invoiceFrequency: entry.invoiceFrequency || null,
+                            priceModel: entry.priceModel || null,
                             allowance: entry.allowance || null,
                             term: entry.term || null,
                             rollover: entry.rollover ? 1 : 0,
