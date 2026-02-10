@@ -639,8 +639,8 @@ export default function CreateProductPage() {
                                             />
                                           </div>
                                         )}
-                                        {/* For PAYG: single Unit of Measure (usage = billable) */}
-                                        {entry.usageType === 'PAYG' ? (
+                                        {/* For PAYG and allowance: single Unit of Measure (usage = billable) */}
+                                        {(entry.usageType === 'PAYG' || entry.usageType === 'allowance') ? (
                                           <div className="space-y-1">
                                             <Label className="text-xs">Unit of Measure</Label>
                                             <Select
@@ -648,7 +648,7 @@ export default function CreateProductPage() {
                                               onValueChange={(value) => {
                                                 const updatedLines = [...product.productLines];
                                                 const entries = [...updatedLines[index].rateCardEntries!];
-                                                // For PAYG, usage UoM = billable UoM
+                                                // For PAYG and allowance, usage UoM = billable UoM
                                                 entries[entryIndex] = {
                                                   ...entries[entryIndex],
                                                   usageUnitOfMeasure: value,
@@ -968,50 +968,82 @@ export default function CreateProductPage() {
                                                     />
                                                   </div>
                                                 )}
-                                                <div className="space-y-1">
-                                                  <Label className="text-xs">Usage Unit of Measure</Label>
-                                                  <Select
-                                                    value={entry.usageUnitOfMeasure || ''}
-                                                    onValueChange={(value) => updateRateCardEntry(index, entryIndex, 'usageUnitOfMeasure', value)}
-                                                  >
-                                                    <SelectTrigger className="h-8 text-xs">
-                                                      <SelectValue placeholder="Select" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                      <SelectItem value="each">Each</SelectItem>
-                                                      <SelectItem value="seat">Seat</SelectItem>
-                                                      <SelectItem value="user">User</SelectItem>
-                                                      <SelectItem value="gb">GB</SelectItem>
-                                                      <SelectItem value="tb">TB</SelectItem>
-                                                      <SelectItem value="hour">Hour</SelectItem>
-                                                      <SelectItem value="transaction">Transaction</SelectItem>
-                                                      <SelectItem value="apiCall">API Call</SelectItem>
-                                                      <SelectItem value="request">Request</SelectItem>
-                                                    </SelectContent>
-                                                  </Select>
-                                                </div>
-                                                <div className="space-y-1">
-                                                  <Label className="text-xs">Billable Unit of Measure</Label>
-                                                  <Select
-                                                    value={entry.billableUnitOfMeasure || ''}
-                                                    onValueChange={(value) => updateRateCardEntry(index, entryIndex, 'billableUnitOfMeasure', value)}
-                                                  >
-                                                    <SelectTrigger className="h-8 text-xs">
-                                                      <SelectValue placeholder="Select" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                      <SelectItem value="each">Each</SelectItem>
-                                                      <SelectItem value="seat">Seat</SelectItem>
-                                                      <SelectItem value="user">User</SelectItem>
-                                                      <SelectItem value="gb">GB</SelectItem>
-                                                      <SelectItem value="tb">TB</SelectItem>
-                                                      <SelectItem value="hour">Hour</SelectItem>
-                                                      <SelectItem value="transaction">Transaction</SelectItem>
-                                                      <SelectItem value="apiCall">API Call</SelectItem>
-                                                      <SelectItem value="request">Request</SelectItem>
-                                                    </SelectContent>
-                                                  </Select>
-                                                </div>
+                                                {/* For allowance: single Unit of Measure (usage = billable) */}
+                                                {entry.usageType === 'allowance' ? (
+                                                  <div className="space-y-1">
+                                                    <Label className="text-xs">Unit of Measure</Label>
+                                                    <Select
+                                                      value={entry.usageUnitOfMeasure || ''}
+                                                      onValueChange={(value) => {
+                                                        // For allowance, usage UoM = billable UoM
+                                                        updateRateCardEntry(index, entryIndex, 'usageUnitOfMeasure', value);
+                                                        updateRateCardEntry(index, entryIndex, 'billableUnitOfMeasure', value);
+                                                      }}
+                                                    >
+                                                      <SelectTrigger className="h-8 text-xs">
+                                                        <SelectValue placeholder="Select" />
+                                                      </SelectTrigger>
+                                                      <SelectContent>
+                                                        <SelectItem value="each">Each</SelectItem>
+                                                        <SelectItem value="seat">Seat</SelectItem>
+                                                        <SelectItem value="user">User</SelectItem>
+                                                        <SelectItem value="gb">GB</SelectItem>
+                                                        <SelectItem value="tb">TB</SelectItem>
+                                                        <SelectItem value="hour">Hour</SelectItem>
+                                                        <SelectItem value="transaction">Transaction</SelectItem>
+                                                        <SelectItem value="apiCall">API Call</SelectItem>
+                                                        <SelectItem value="request">Request</SelectItem>
+                                                      </SelectContent>
+                                                    </Select>
+                                                  </div>
+                                                ) : (
+                                                  <>
+                                                    <div className="space-y-1">
+                                                      <Label className="text-xs">Usage Unit of Measure</Label>
+                                                      <Select
+                                                        value={entry.usageUnitOfMeasure || ''}
+                                                        onValueChange={(value) => updateRateCardEntry(index, entryIndex, 'usageUnitOfMeasure', value)}
+                                                      >
+                                                        <SelectTrigger className="h-8 text-xs">
+                                                          <SelectValue placeholder="Select" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                          <SelectItem value="each">Each</SelectItem>
+                                                          <SelectItem value="seat">Seat</SelectItem>
+                                                          <SelectItem value="user">User</SelectItem>
+                                                          <SelectItem value="gb">GB</SelectItem>
+                                                          <SelectItem value="tb">TB</SelectItem>
+                                                          <SelectItem value="hour">Hour</SelectItem>
+                                                          <SelectItem value="transaction">Transaction</SelectItem>
+                                                          <SelectItem value="apiCall">API Call</SelectItem>
+                                                          <SelectItem value="request">Request</SelectItem>
+                                                        </SelectContent>
+                                                      </Select>
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                      <Label className="text-xs">Billable Unit of Measure</Label>
+                                                      <Select
+                                                        value={entry.billableUnitOfMeasure || ''}
+                                                        onValueChange={(value) => updateRateCardEntry(index, entryIndex, 'billableUnitOfMeasure', value)}
+                                                      >
+                                                        <SelectTrigger className="h-8 text-xs">
+                                                          <SelectValue placeholder="Select" />
+                                                        </SelectTrigger>
+                                                        <SelectContent>
+                                                          <SelectItem value="each">Each</SelectItem>
+                                                          <SelectItem value="seat">Seat</SelectItem>
+                                                          <SelectItem value="user">User</SelectItem>
+                                                          <SelectItem value="gb">GB</SelectItem>
+                                                          <SelectItem value="tb">TB</SelectItem>
+                                                          <SelectItem value="hour">Hour</SelectItem>
+                                                          <SelectItem value="transaction">Transaction</SelectItem>
+                                                          <SelectItem value="apiCall">API Call</SelectItem>
+                                                          <SelectItem value="request">Request</SelectItem>
+                                                        </SelectContent>
+                                                      </Select>
+                                                    </div>
+                                                  </>
+                                                )}
                                                 {/* Invoice Frequency - N/A for allowance (inherited from recurring line) */}
                                                 {entry.usageType === 'allowance' ? (
                                                   <div className="space-y-1">
