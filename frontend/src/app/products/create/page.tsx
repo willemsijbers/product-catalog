@@ -734,8 +734,8 @@ export default function CreateProductPage() {
                                             </div>
                                           </>
                                         )}
-                                        {/* Invoice Frequency - N/A for allowance and consumption (no invoicing) */}
-                                        {(entry.usageType === 'allowance' || entry.usageType === 'consumption') ? (
+                                        {/* Invoice Frequency - Hidden for allowance, N/A for consumption */}
+                                        {entry.usageType === 'allowance' ? null : entry.usageType === 'consumption' ? (
                                           <div className="space-y-1">
                                             <Label className="text-xs">Invoice Frequency</Label>
                                             <div className="h-8 flex items-center text-xs text-muted-foreground px-3 border rounded-md bg-muted">
@@ -768,29 +768,32 @@ export default function CreateProductPage() {
                                             </Select>
                                           </div>
                                         )}
-                                        <div className="space-y-1">
-                                          <Label className="text-xs">Price Model</Label>
-                                          <Select
-                                            value={entry.priceModel || ''}
-                                            onValueChange={(value) => {
-                                              const updatedLines = [...product.productLines];
-                                              const entries = [...updatedLines[index].rateCardEntries!];
-                                              entries[entryIndex] = { ...entries[entryIndex], priceModel: value as any };
-                                              updatedLines[index].rateCardEntries = entries;
-                                              setProduct({ ...product, productLines: updatedLines });
-                                            }}
-                                          >
-                                            <SelectTrigger className="h-8 text-xs">
-                                              <SelectValue placeholder="Select" />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                              <SelectItem value="perUnit">Per Unit</SelectItem>
-                                              <SelectItem value="tiered">Tiered</SelectItem>
-                                              <SelectItem value="volume">Volume</SelectItem>
-                                              <SelectItem value="stairstep">Stairstep</SelectItem>
-                                            </SelectContent>
-                                          </Select>
-                                        </div>
+                                        {/* Price Model - Hidden for allowance */}
+                                        {entry.usageType !== 'allowance' && (
+                                          <div className="space-y-1">
+                                            <Label className="text-xs">Price Model</Label>
+                                            <Select
+                                              value={entry.priceModel || ''}
+                                              onValueChange={(value) => {
+                                                const updatedLines = [...product.productLines];
+                                                const entries = [...updatedLines[index].rateCardEntries!];
+                                                entries[entryIndex] = { ...entries[entryIndex], priceModel: value as any };
+                                                updatedLines[index].rateCardEntries = entries;
+                                                setProduct({ ...product, productLines: updatedLines });
+                                              }}
+                                            >
+                                              <SelectTrigger className="h-8 text-xs">
+                                                <SelectValue placeholder="Select" />
+                                              </SelectTrigger>
+                                              <SelectContent>
+                                                <SelectItem value="perUnit">Per Unit</SelectItem>
+                                                <SelectItem value="tiered">Tiered</SelectItem>
+                                                <SelectItem value="volume">Volume</SelectItem>
+                                                <SelectItem value="stairstep">Stairstep</SelectItem>
+                                              </SelectContent>
+                                            </Select>
+                                          </div>
+                                        )}
                                         {(entry.usageType === 'allowance' || entry.usageType === 'prepaid') && (
                                           <>
                                             <div className="space-y-1">
@@ -1044,8 +1047,8 @@ export default function CreateProductPage() {
                                                     </div>
                                                   </>
                                                 )}
-                                                {/* Invoice Frequency - N/A for allowance and consumption (no invoicing) */}
-                                                {(entry.usageType === 'allowance' || entry.usageType === 'consumption') ? (
+                                                {/* Invoice Frequency - Hidden for allowance, N/A for consumption */}
+                                                {entry.usageType === 'allowance' ? null : entry.usageType === 'consumption' ? (
                                                   <div className="space-y-1">
                                                     <Label className="text-xs">Invoice Frequency</Label>
                                                     <div className="h-8 flex items-center text-xs text-muted-foreground px-3 border rounded-md bg-muted">
@@ -1072,23 +1075,26 @@ export default function CreateProductPage() {
                                                     </Select>
                                                   </div>
                                                 )}
-                                                <div className="space-y-1">
-                                                  <Label className="text-xs">Price Model</Label>
-                                                  <Select
-                                                    value={entry.priceModel || ''}
-                                                    onValueChange={(value) => updateRateCardEntry(index, entryIndex, 'priceModel', value as any)}
-                                                  >
-                                                    <SelectTrigger className="h-8 text-xs">
-                                                      <SelectValue placeholder="Select" />
-                                                    </SelectTrigger>
-                                                    <SelectContent>
-                                                      <SelectItem value="perUnit">Per Unit</SelectItem>
-                                                      <SelectItem value="tiered">Tiered</SelectItem>
-                                                      <SelectItem value="volume">Volume</SelectItem>
-                                                      <SelectItem value="stairstep">Stairstep</SelectItem>
-                                                    </SelectContent>
-                                                  </Select>
-                                                </div>
+                                                {/* Price Model - Hidden for allowance */}
+                                                {entry.usageType !== 'allowance' && (
+                                                  <div className="space-y-1">
+                                                    <Label className="text-xs">Price Model</Label>
+                                                    <Select
+                                                      value={entry.priceModel || ''}
+                                                      onValueChange={(value) => updateRateCardEntry(index, entryIndex, 'priceModel', value as any)}
+                                                    >
+                                                      <SelectTrigger className="h-8 text-xs">
+                                                        <SelectValue placeholder="Select" />
+                                                      </SelectTrigger>
+                                                      <SelectContent>
+                                                        <SelectItem value="perUnit">Per Unit</SelectItem>
+                                                        <SelectItem value="tiered">Tiered</SelectItem>
+                                                        <SelectItem value="volume">Volume</SelectItem>
+                                                        <SelectItem value="stairstep">Stairstep</SelectItem>
+                                                      </SelectContent>
+                                                    </Select>
+                                                  </div>
+                                                )}
                                                 {(entry.usageType === 'allowance' || entry.usageType === 'prepaid') && (
                                                   <>
                                                     <div className="space-y-1">
