@@ -64,13 +64,13 @@ export default function ProductPricingPage() {
     { priceBookId: '', currency: 'USD' }
   ]);
   const [priceEntries, setPriceEntries] = useState<Map<string, PriceTier[]>>(new Map());
-  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
   const [expandedCells, setExpandedCells] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (params.productNumber) {
       fetchProduct(params.productNumber as string);
       fetchPriceBooks();
+      fetchExistingPricing(params.productNumber as string);
     }
   }, [params.productNumber]);
 
@@ -97,6 +97,61 @@ export default function ProductPricingPage() {
       }
     } catch (error) {
       console.error('Error fetching price books:', error);
+    }
+  };
+
+  const fetchExistingPricing = async (productNumber: string) => {
+    try {
+      const response = await fetch(`http://localhost:3000/api/products/${productNumber}/pricing`);
+      if (response.ok) {
+        const data = await response.json();
+
+        if (data.length === 0) return; // No existing pricing
+
+        // Extract unique price book + currency configurations
+        const configsSet = new Map<string, PriceConfiguration>();
+        data.forEach((row: any) => {
+          const key = `${row.priceBookId}|${row.currency}`;
+          if (!configsSet.has(key)) {
+            configsSet.set(key, {
+              priceBookId: row.priceBookId,
+              currency: row.currency as Currency
+            });
+          }
+        });
+        setSelectedConfigs(Array.from(configsSet.values()));
+
+        // Set validFrom to the earliest date
+        const dates = data.map((row: any) => row.validFrom);
+        const earliestDate = dates.sort()[0];
+        if (earliestDate) {
+          setValidFrom(earliestDate);
+        }
+
+        // Build price entries map
+        const newPriceEntries = new Map<string, PriceTier[]>();
+
+        data.forEach((row: any) => {
+          // Determine the item ID (productLineNumber or rateCardEntryId)
+          const itemId = row.rateCardEntryId || row.productLineNumber;
+
+          const key = getPriceKey(itemId, row.priceBookId, row.currency);
+          const existingTiers = newPriceEntries.get(key) || [];
+
+          existingTiers.push({
+            fromQuantity: row.fromQuantity || 0,
+            listPrice: row.listPrice.toString()
+          });
+
+          // Sort tiers by fromQuantity
+          existingTiers.sort((a, b) => a.fromQuantity - b.fromQuantity);
+          newPriceEntries.set(key, existingTiers);
+        });
+
+        setPriceEntries(newPriceEntries);
+      }
+    } catch (error) {
+      console.error('Error fetching existing pricing:', error);
     }
   };
 
@@ -247,23 +302,8 @@ export default function ProductPricingPage() {
     setExpandedCells(newSet);
   };
 
-  const toggleItemSelection = (itemId: string) => {
-    const newSet = new Set(selectedItems);
-    if (newSet.has(itemId)) {
-      newSet.delete(itemId);
-    } else {
-      newSet.add(itemId);
-    }
-    setSelectedItems(newSet);
-  };
-
   const handleSubmit = async () => {
     // Validate
-    if (selectedItems.size === 0) {
-      alert('Please select at least one item to price');
-      return;
-    }
-
     const validConfigs = selectedConfigs.filter(c => c.priceBookId);
     if (validConfigs.length === 0) {
       alert('Please configure at least one price book and currency');
@@ -279,11 +319,8 @@ export default function ProductPricingPage() {
 
     const priceableItems = getPriceableItems();
 
-    selectedItems.forEach(itemId => {
-      const item = priceableItems.find(i =>
-        (i.rateCardEntryNumber || i.productLineNumber) === itemId
-      );
-      if (!item) return;
+    priceableItems.forEach(item => {
+      const itemId = item.rateCardEntryNumber || item.productLineNumber;
 
       validConfigs.forEach(config => {
         const tiers = getTiers(itemId, config.priceBookId, config.currency);
@@ -501,22 +538,6 @@ export default function ProductPricingPage() {
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="border-b">
-                      <th className="text-left p-3 font-medium w-12">
-                        <input
-                          type="checkbox"
-                          checked={selectedItems.size === priceableItems.length}
-                          onChange={() => {
-                            if (selectedItems.size === priceableItems.length) {
-                              setSelectedItems(new Set());
-                            } else {
-                              setSelectedItems(new Set(priceableItems.map(item =>
-                                item.rateCardEntryNumber || item.productLineNumber
-                              )));
-                            }
-                          }}
-                          className="w-4 h-4"
-                        />
-                      </th>
                       <th className="text-left p-3 font-medium">Item</th>
                       <th className="text-left p-3 font-medium">Type</th>
                       {selectedConfigs.filter(c => c.priceBookId).map((config, idx) => (
@@ -531,18 +552,9 @@ export default function ProductPricingPage() {
                   <tbody>
                     {priceableItems.map(item => {
                       const itemId = item.rateCardEntryNumber || item.productLineNumber;
-                      const isSelected = selectedItems.has(itemId);
 
                       return (
                         <tr key={itemId} className="border-b hover:bg-muted/50">
-                          <td className="p-3">
-                            <input
-                              type="checkbox"
-                              checked={isSelected}
-                              onChange={() => toggleItemSelection(itemId)}
-                              className="w-4 h-4"
-                            />
-                          </td>
                           <td className="p-3">
                             <div className="font-medium">{item.name}</div>
                             {item.unitOfMeasure && (
@@ -576,7 +588,6 @@ export default function ProductPricingPage() {
                                               placeholder="From"
                                               value={tier.fromQuantity}
                                               onChange={(e) => updateTier(itemId, config.priceBookId, config.currency, tierIndex, 'fromQuantity', e.target.value)}
-                                              disabled={!isSelected}
                                               className="h-8 w-20 text-xs"
                                             />
                                           )}
@@ -589,7 +600,6 @@ export default function ProductPricingPage() {
                                               placeholder="0.00"
                                               value={tier.listPrice}
                                               onChange={(e) => updateTier(itemId, config.priceBookId, config.currency, tierIndex, 'listPrice', e.target.value)}
-                                              disabled={!isSelected}
                                               className="h-8 flex-1"
                                             />
                                           </div>
@@ -599,7 +609,6 @@ export default function ProductPricingPage() {
                                               variant="ghost"
                                               size="sm"
                                               onClick={() => removeTier(itemId, config.priceBookId, config.currency, tierIndex)}
-                                              disabled={!isSelected}
                                               className="h-8 w-8 p-0"
                                             >
                                               <Trash2 className="w-3 h-3 text-destructive" />
@@ -607,18 +616,16 @@ export default function ProductPricingPage() {
                                           )}
                                         </div>
                                       ))}
-                                      {isSelected && (
-                                        <Button
-                                          type="button"
-                                          variant="outline"
-                                          size="sm"
-                                          onClick={() => addTier(itemId, config.priceBookId, config.currency)}
-                                          className="h-7 text-xs w-full"
-                                        >
-                                          <Plus className="w-3 h-3 mr-1" />
-                                          Add Tier
-                                        </Button>
-                                      )}
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => addTier(itemId, config.priceBookId, config.currency)}
+                                        className="h-7 text-xs w-full"
+                                      >
+                                        <Plus className="w-3 h-3 mr-1" />
+                                        Add Tier
+                                      </Button>
                                     </>
                                   ) : (
                                     <div className="flex items-center gap-1">
@@ -630,7 +637,6 @@ export default function ProductPricingPage() {
                                         placeholder="0.00"
                                         value={tiers[0]?.listPrice || ''}
                                         onChange={(e) => updateTier(itemId, config.priceBookId, config.currency, 0, 'listPrice', e.target.value)}
-                                        disabled={!isSelected}
                                         className="h-8 flex-1"
                                       />
                                     </div>

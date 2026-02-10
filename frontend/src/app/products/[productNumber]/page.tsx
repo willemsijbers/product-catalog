@@ -56,10 +56,12 @@ export default function ProductDetailPage() {
   const router = useRouter();
   const [product, setProduct] = useState<ProductDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasPricing, setHasPricing] = useState(false);
 
   useEffect(() => {
     if (params.productNumber) {
       fetchProductDetail(params.productNumber as string);
+      checkPricingExists(params.productNumber as string);
     }
   }, [params.productNumber]);
 
@@ -76,6 +78,18 @@ export default function ProductDetailPage() {
       console.error('Error fetching product:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const checkPricingExists = async (productNumber: string) => {
+    try {
+      const response = await fetch(`http://localhost:3000/api/products/${productNumber}/has-pricing`);
+      if (response.ok) {
+        const data = await response.json();
+        setHasPricing(data.hasPricing);
+      }
+    } catch (error) {
+      console.error('Error checking pricing:', error);
     }
   };
 
@@ -189,7 +203,7 @@ export default function ProductDetailPage() {
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => router.push(`/products/${product.productNumber}/pricing`)}>
-                  Create Pricing
+                  {hasPricing ? 'Edit Pricing' : 'Create Pricing'}
                 </Button>
                 <Button variant="outline">
                   <Edit className="w-4 h-4 mr-2" />

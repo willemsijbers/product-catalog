@@ -555,6 +555,64 @@ router.delete('/price-book-entries/:priceBookEntryNumber', (req, res) => {
     });
 });
 
+// ===== CHECK IF PRODUCT HAS PRICING =====
+router.get('/products/:productNumber/has-pricing', (req, res) => {
+    const { productNumber } = req.params;
+    const db = req.app.get('db');
+
+    const sql = `
+        SELECT COUNT(*) as count
+        FROM PriceBookEntryHeader h
+        INNER JOIN ProductLine pl ON h.productLineNumber = pl.productLineNumber
+        WHERE pl.productNumber = ?
+    `;
+
+    db.get(sql, [productNumber], (err, row) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+        res.json({ hasPricing: row.count > 0 });
+    });
+});
+
+// ===== GET PRODUCT PRICING =====
+router.get('/products/:productNumber/pricing', (req, res) => {
+    const { productNumber } = req.params;
+    const db = req.app.get('db');
+
+    // Get all pricing for this product
+    const sql = `
+        SELECT
+            h.headerNumber,
+            h.priceBookId,
+            h.productLineNumber,
+            h.currency,
+            h.validFrom,
+            h.description as headerDescription,
+            e.priceBookEntryNumber,
+            e.listPrice,
+            e.fromQuantity,
+            e.rateCardEntryId,
+            e.description as entryDescription,
+            pb.priceBookName,
+            pb.isStandard
+        FROM PriceBookEntryHeader h
+        INNER JOIN ProductLine pl ON h.productLineNumber = pl.productLineNumber
+        INNER JOIN PriceBookEntry e ON h.headerNumber = e.headerId
+        INNER JOIN PriceBook pb ON h.priceBookId = pb.priceBookNumber
+        WHERE pl.productNumber = ?
+        ORDER BY h.headerNumber, e.fromQuantity
+    `;
+
+    db.all(sql, [productNumber], (err, rows) => {
+        if (err) {
+            return res.status(500).json({ error: err.message });
+        }
+
+        res.json(rows || []);
+    });
+});
+
 // ===== BATCH PRICING CREATION =====
 router.post('/pricing/batch', (req, res) => {
     const { productNumber, validFrom, entries } = req.body;

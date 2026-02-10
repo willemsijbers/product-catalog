@@ -789,15 +789,8 @@ export default function CreateProductPage() {
                                             </div>
                                           </>
                                         )}
-                                        {/* Invoice Frequency - Hidden for allowance, N/A for consumption */}
-                                        {entry.usageType === 'allowance' ? null : entry.usageType === 'consumption' ? (
-                                          <div className="space-y-1">
-                                            <Label className="text-xs">Invoice Frequency</Label>
-                                            <div className="h-8 flex items-center text-xs text-muted-foreground px-3 border rounded-md bg-muted">
-                                              N/A
-                                            </div>
-                                          </div>
-                                        ) : (
+                                        {/* Invoice Frequency - Hidden for allowance and consumption */}
+                                        {entry.usageType !== 'allowance' && entry.usageType !== 'consumption' && (
                                           <div className="space-y-1">
                                             <Label className="text-xs">Invoice Frequency</Label>
                                             <Select
@@ -823,8 +816,8 @@ export default function CreateProductPage() {
                                             </Select>
                                           </div>
                                         )}
-                                        {/* Price Model - Hidden for allowance */}
-                                        {entry.usageType !== 'allowance' && (
+                                        {/* Price Model - Hidden for allowance and consumption */}
+                                        {entry.usageType !== 'allowance' && entry.usageType !== 'consumption' && (
                                           <div className="space-y-1">
                                             <Label className="text-xs">Price Model</Label>
                                             <Select
@@ -1094,15 +1087,8 @@ export default function CreateProductPage() {
                                                     </div>
                                                   </>
                                                 )}
-                                                {/* Invoice Frequency - Hidden for allowance, N/A for consumption */}
-                                                {entry.usageType === 'allowance' ? null : entry.usageType === 'consumption' ? (
-                                                  <div className="space-y-1">
-                                                    <Label className="text-xs">Invoice Frequency</Label>
-                                                    <div className="h-8 flex items-center text-xs text-muted-foreground px-3 border rounded-md bg-muted">
-                                                      N/A
-                                                    </div>
-                                                  </div>
-                                                ) : (
+                                                {/* Invoice Frequency - Hidden for allowance and consumption */}
+                                                {entry.usageType !== 'allowance' && entry.usageType !== 'consumption' && (
                                                   <div className="space-y-1">
                                                     <Label className="text-xs">Invoice Frequency</Label>
                                                     <Select
@@ -1122,8 +1108,8 @@ export default function CreateProductPage() {
                                                     </Select>
                                                   </div>
                                                 )}
-                                                {/* Price Model - Hidden for allowance */}
-                                                {entry.usageType !== 'allowance' && (
+                                                {/* Price Model - Hidden for allowance and consumption */}
+                                                {entry.usageType !== 'allowance' && entry.usageType !== 'consumption' && (
                                                   <div className="space-y-1">
                                                     <Label className="text-xs">Price Model</Label>
                                                     <Select
