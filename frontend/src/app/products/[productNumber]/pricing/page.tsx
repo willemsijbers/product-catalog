@@ -37,11 +37,16 @@ interface PriceConfiguration {
   currency: Currency;
 }
 
+interface PriceTier {
+  fromQuantity: number;
+  listPrice: string;
+}
+
 interface PriceEntry {
   itemId: string; // productLineNumber or rateCardEntryNumber
   priceBookId: string;
   currency: Currency;
-  listPrice: string;
+  tiers: PriceTier[];
 }
 
 export default function ProductPricingPage() {
@@ -56,8 +61,9 @@ export default function ProductPricingPage() {
   const [selectedConfigs, setSelectedConfigs] = useState<PriceConfiguration[]>([
     { priceBookId: '', currency: 'USD' }
   ]);
-  const [priceEntries, setPriceEntries] = useState<Map<string, string>>(new Map());
+  const [priceEntries, setPriceEntries] = useState<Map<string, PriceTier[]>>(new Map());
   const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [expandedCells, setExpandedCells] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (params.productNumber) {
@@ -130,7 +136,19 @@ export default function ProductPricingPage() {
 
   const formatUsageType = (type: string) => {
     if (type === 'PAYG') return 'PAYG';
+    if (type === 'prepaid') return 'Prepaid';
+    if (type === 'overage') return 'Overage';
+    if (type === 'allowance') return 'Allowance';
+    if (type === 'consumption') return 'Consumption';
+    if (type === 'minimumCommit') return 'Minimum Commit';
     return type.charAt(0).toUpperCase() + type.slice(1);
+  };
+
+  const formatLineType = (lineType: string) => {
+    if (lineType === 'oneTime') return 'One-Time';
+    if (lineType === 'recurring') return 'Recurring';
+    if (lineType === 'usage') return 'Usage';
+    return lineType;
   };
 
   const addPriceConfiguration = () => {
@@ -152,15 +170,55 @@ export default function ProductPricingPage() {
     return `${itemId}|${priceBookId}|${currency}`;
   };
 
-  const updatePrice = (itemId: string, priceBookId: string, currency: Currency, price: string) => {
+  const getTiers = (itemId: string, priceBookId: string, currency: Currency): PriceTier[] => {
     const key = getPriceKey(itemId, priceBookId, currency);
+    return priceEntries.get(key) || [{ fromQuantity: 0, listPrice: '' }];
+  };
+
+  const updateTier = (itemId: string, priceBookId: string, currency: Currency, tierIndex: number, field: 'fromQuantity' | 'listPrice', value: string) => {
+    const key = getPriceKey(itemId, priceBookId, currency);
+    const tiers = [...getTiers(itemId, priceBookId, currency)];
+    tiers[tierIndex] = { ...tiers[tierIndex], [field]: field === 'fromQuantity' ? parseInt(value) || 0 : value };
+
     const newMap = new Map(priceEntries);
-    if (price) {
-      newMap.set(key, price);
-    } else {
-      newMap.delete(key);
-    }
+    newMap.set(key, tiers);
     setPriceEntries(newMap);
+  };
+
+  const addTier = (itemId: string, priceBookId: string, currency: Currency) => {
+    const key = getPriceKey(itemId, priceBookId, currency);
+    const tiers = getTiers(itemId, priceBookId, currency);
+    const lastTier = tiers[tiers.length - 1];
+    const newFromQuantity = lastTier ? (parseInt(lastTier.fromQuantity?.toString()) || 0) + 100 : 0;
+
+    const newMap = new Map(priceEntries);
+    newMap.set(key, [...tiers, { fromQuantity: newFromQuantity, listPrice: '' }]);
+    setPriceEntries(newMap);
+  };
+
+  const removeTier = (itemId: string, priceBookId: string, currency: Currency, tierIndex: number) => {
+    const key = getPriceKey(itemId, priceBookId, currency);
+    const tiers = getTiers(itemId, priceBookId, currency);
+
+    if (tiers.length === 1) {
+      const newMap = new Map(priceEntries);
+      newMap.delete(key);
+      setPriceEntries(newMap);
+    } else {
+      const newMap = new Map(priceEntries);
+      newMap.set(key, tiers.filter((_, i) => i !== tierIndex));
+      setPriceEntries(newMap);
+    }
+  };
+
+  const toggleCellExpansion = (key: string) => {
+    const newSet = new Set(expandedCells);
+    if (newSet.has(key)) {
+      newSet.delete(key);
+    } else {
+      newSet.add(key);
+    }
+    setExpandedCells(newSet);
   };
 
   const toggleItemSelection = (itemId: string) => {
@@ -202,18 +260,20 @@ export default function ProductPricingPage() {
       if (!item) return;
 
       validConfigs.forEach(config => {
-        const key = getPriceKey(itemId, config.priceBookId, config.currency);
-        const price = priceEntries.get(key);
+        const tiers = getTiers(itemId, config.priceBookId, config.currency);
 
-        if (price && parseFloat(price) > 0) {
-          pricingData.entries.push({
-            productLineNumber: item.productLineNumber,
-            rateCardEntryId: item.rateCardEntryNumber || null,
-            priceBookId: config.priceBookId,
-            currency: config.currency,
-            listPrice: parseFloat(price),
-          });
-        }
+        tiers.forEach(tier => {
+          if (tier.listPrice && parseFloat(tier.listPrice) > 0) {
+            pricingData.entries.push({
+              productLineNumber: item.productLineNumber,
+              rateCardEntryId: item.rateCardEntryNumber || null,
+              priceBookId: config.priceBookId,
+              currency: config.currency,
+              listPrice: parseFloat(tier.listPrice),
+              fromQuantity: tier.fromQuantity,
+            });
+          }
+        });
       });
     });
 
@@ -467,24 +527,71 @@ export default function ProductPricingPage() {
                           </td>
                           <td className="p-3">
                             <span className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                              {item.lineType === 'usage' ? item.usageType :
-                               item.lineType === 'oneTime' ? 'One-Time' : 'Recurring'}
+                              {item.lineType === 'usage' ? formatUsageType(item.usageType!) :
+                               formatLineType(item.lineType)}
                             </span>
                           </td>
                           {selectedConfigs.filter(c => c.priceBookId).map((config, idx) => {
                             const priceKey = getPriceKey(itemId, config.priceBookId, config.currency);
+                            const tiers = getTiers(itemId, config.priceBookId, config.currency);
+                            const isExpanded = expandedCells.has(priceKey);
+
                             return (
-                              <td key={idx} className="p-3">
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  placeholder="0.00"
-                                  value={priceEntries.get(priceKey) || ''}
-                                  onChange={(e) => updatePrice(itemId, config.priceBookId, config.currency, e.target.value)}
-                                  disabled={!isSelected}
-                                  className="h-9"
-                                />
+                              <td key={idx} className="p-3 align-top">
+                                <div className="space-y-2">
+                                  {tiers.map((tier, tierIndex) => (
+                                    <div key={tierIndex} className="flex items-center gap-2">
+                                      {tiers.length > 1 && (
+                                        <Input
+                                          type="number"
+                                          min="0"
+                                          placeholder="From"
+                                          value={tier.fromQuantity}
+                                          onChange={(e) => updateTier(itemId, config.priceBookId, config.currency, tierIndex, 'fromQuantity', e.target.value)}
+                                          disabled={!isSelected}
+                                          className="h-8 w-20 text-xs"
+                                        />
+                                      )}
+                                      <div className="flex items-center gap-1 flex-1">
+                                        <span className="text-xs text-muted-foreground">{config.currency}</span>
+                                        <Input
+                                          type="number"
+                                          step="0.01"
+                                          min="0"
+                                          placeholder="0.00"
+                                          value={tier.listPrice}
+                                          onChange={(e) => updateTier(itemId, config.priceBookId, config.currency, tierIndex, 'listPrice', e.target.value)}
+                                          disabled={!isSelected}
+                                          className="h-8 flex-1"
+                                        />
+                                      </div>
+                                      {tiers.length > 1 && (
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          onClick={() => removeTier(itemId, config.priceBookId, config.currency, tierIndex)}
+                                          disabled={!isSelected}
+                                          className="h-8 w-8 p-0"
+                                        >
+                                          <Trash2 className="w-3 h-3 text-destructive" />
+                                        </Button>
+                                      )}
+                                    </div>
+                                  ))}
+                                  {isSelected && (
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={() => addTier(itemId, config.priceBookId, config.currency)}
+                                      className="h-7 text-xs w-full"
+                                    >
+                                      <Plus className="w-3 h-3 mr-1" />
+                                      Add Tier
+                                    </Button>
+                                  )}
+                                </div>
                               </td>
                             );
                           })}

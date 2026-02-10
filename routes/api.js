@@ -558,7 +558,7 @@ router.delete('/price-book-entries/:priceBookEntryNumber', (req, res) => {
 // ===== BATCH PRICING CREATION =====
 router.post('/pricing/batch', (req, res) => {
     const { productNumber, validFrom, entries } = req.body;
-    const db = req.db;
+    const db = req.app.get('db');
 
     if (!productNumber || !validFrom || !entries || entries.length === 0) {
         return res.status(400).json({ error: 'Missing required fields' });
