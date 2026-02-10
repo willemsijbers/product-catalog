@@ -22,6 +22,7 @@ interface ProductLine {
 interface RateCardEntry {
   rateCardEntryNumber: string;
   usageType: string;
+  priceModel?: string;
   identifier?: string;
   usageUnitOfMeasure?: string;
 }
@@ -127,7 +128,7 @@ export default function ProductPricingPage() {
               usageType: entry.usageType as 'PAYG' | 'prepaid' | 'overage',
               rateCardEntryNumber: entry.rateCardEntryNumber,
               unitOfMeasure: entry.usageUnitOfMeasure,
-              priceModel: 'rateCard', // Usage lines always use rate card
+              priceModel: entry.priceModel || 'perUnit', // Rate card entries have their own price model
             });
           }
         });
@@ -163,8 +164,13 @@ export default function ProductPricingPage() {
       return true;
     }
 
-    // Overage usage type (always supports tiers regardless of price model)
-    if (item.lineType === 'usage' && item.usageType === 'overage') {
+    // PAYG usage type with tiered price models
+    if (item.lineType === 'usage' && item.usageType === 'PAYG' && tieredPriceModels.includes(item.priceModel || '')) {
+      return true;
+    }
+
+    // Overage usage type with tiered price models
+    if (item.lineType === 'usage' && item.usageType === 'overage' && tieredPriceModels.includes(item.priceModel || '')) {
       return true;
     }
 
