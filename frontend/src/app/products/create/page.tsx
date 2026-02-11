@@ -107,9 +107,10 @@ export default function CreateProductPage() {
     const updatedLines = [...product.productLines];
     updatedLines[index] = { ...updatedLines[index], [field]: value };
 
-    // When lineType changes to oneTime, set pricingTerm to 'once'
+    // When lineType changes to oneTime, set pricingTerm to 'once' and priceModel to 'perUnit'
     if (field === 'lineType' && value === 'oneTime') {
       updatedLines[index].pricingTerm = 'once';
+      updatedLines[index].priceModel = 'perUnit';
     }
 
     // When lineType changes to prepaid, configure it automatically
@@ -599,15 +600,15 @@ export default function CreateProductPage() {
                               </div>
                             )}
 
-                            {/* Price Model - Show for recurring, usage, prepaid, and billableTime */}
-                            {['recurring', 'usage', 'prepaid', 'billableTime'].includes(line.lineType) && (
+                            {/* Price Model - Show for all line types except billable travel/pass-through */}
+                            {!['billableTravelExpense', 'billablePassThrough'].includes(line.lineType) && (
                               <div className="space-y-2">
                                 <Label htmlFor={`price-model-${index}`}>Price Model *</Label>
                                 {line.lineType === 'usage' ? (
                                   <div className="h-9 flex items-center text-sm font-medium px-3 border rounded-md bg-muted">
                                     Rate Card
                                   </div>
-                                ) : line.lineType === 'prepaid' ? (
+                                ) : line.lineType === 'prepaid' || line.lineType === 'oneTime' ? (
                                   <div className="h-9 flex items-center text-sm font-medium px-3 border rounded-md bg-muted">
                                     Per Unit
                                   </div>
