@@ -27,6 +27,19 @@ export default function CreateProductPage() {
   const [checkingProductCode, setCheckingProductCode] = useState(false);
 
   // Helper functions for display formatting
+  const formatLineType = (lineType: string) => {
+    switch (lineType) {
+      case 'recurring': return 'Recurring';
+      case 'oneTime': return 'One-Time';
+      case 'usage': return 'Usage';
+      case 'prepaid': return 'Prepaid';
+      case 'billableTime': return 'Billable Time';
+      case 'billableTravelExpense': return 'Billable Travel Expense';
+      case 'billablePassThrough': return 'Billable Pass-Through';
+      default: return lineType.charAt(0).toUpperCase() + lineType.slice(1);
+    }
+  };
+
   const formatPriceModel = (priceModel: string) => {
     if (priceModel === 'rateCard') return 'Rate Card';
     if (priceModel === 'perUnit') return 'Per Unit';
@@ -438,7 +451,7 @@ export default function CreateProductPage() {
               <div className="space-y-3">
                 {product.productLines.map((line, index) => {
                   const isExpanded = expandedLines.has(index);
-                  const lineTypeLabel = line.lineType.charAt(0).toUpperCase() + line.lineType.slice(1);
+                  const lineTypeLabel = formatLineType(line.lineType);
                   const displayName = line.name || `${lineTypeLabel} Line`;
 
                   return (
