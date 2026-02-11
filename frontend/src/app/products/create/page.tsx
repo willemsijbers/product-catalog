@@ -504,9 +504,9 @@ export default function CreateProductPage() {
                                   <SelectItem value="oneTime">One-Time</SelectItem>
                                   <SelectItem value="usage">Usage</SelectItem>
                                   <SelectItem value="prepaid">Prepaid</SelectItem>
-                                  <SelectItem value="billableTime">Billable Time</SelectItem>
-                                  <SelectItem value="billableTravelExpense">Billable Travel Expense</SelectItem>
-                                  <SelectItem value="billablePassThrough">Billable Pass Through</SelectItem>
+                                  <SelectItem value="billableTime">Billable Time Line</SelectItem>
+                                  <SelectItem value="billableTravelExpense">Billable Travel Expense Line</SelectItem>
+                                  <SelectItem value="billablePassThrough">Billable Pass-Through</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
