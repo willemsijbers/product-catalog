@@ -34,9 +34,9 @@ export interface PriceBookEntry {
 export interface PriceableItem {
   productLineNumber: string;
   name: string;
-  lineType: 'oneTime' | 'recurring' | 'usage';
+  lineType: 'oneTime' | 'recurring' | 'usage' | 'prepaid' | 'billableTime' | 'billableTravelExpense' | 'billablePassThrough';
   priceModel?: string;
-  usageType?: 'PAYG' | 'prepaid' | 'overage';
+  usageType?: 'PAYG' | 'consumption' | 'allowance' | 'overage' | 'minimumCommit';
   rateCardEntryNumber?: string;
   unitOfMeasure?: string;
 }

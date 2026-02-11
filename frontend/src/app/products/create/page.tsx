@@ -99,6 +99,26 @@ export default function CreateProductPage() {
       updatedLines[index].pricingTerm = 'once';
     }
 
+    // When lineType changes to prepaid, configure it automatically
+    if (field === 'lineType' && value === 'prepaid') {
+      updatedLines[index].pricingTerm = 'once';
+      updatedLines[index].unitOfMeasure = 'credit';
+      updatedLines[index].priceModel = 'perUnit';
+      updatedLines[index].hasUsage = true;
+      // Automatically create usage line for prepaid
+      updatedLines[index].usageLine = {
+        name: `${updatedLines[index].name || 'Prepaid'} Consumption`,
+        priceModel: 'rateCard',
+        rateCardEntries: [
+          {
+            usageType: 'consumption',
+            identifier: '',
+            conversion: 0.1,
+          }
+        ],
+      };
+    }
+
     // When lineType changes to usage, set priceModel to 'rateCard' (required by DB constraint)
     if (field === 'lineType' && value === 'usage') {
       updatedLines[index].priceModel = 'rateCard';
@@ -115,7 +135,8 @@ export default function CreateProductPage() {
         priceModel: 'rateCard',
         rateCardEntries: [],
       };
-    } else if (field === 'hasUsage' && value === false) {
+    } else if (field === 'hasUsage' && value === false && updatedLines[index].lineType !== 'prepaid') {
+      // Don't allow disabling hasUsage for prepaid
       delete updatedLines[index].usageLine;
     }
 
@@ -482,6 +503,10 @@ export default function CreateProductPage() {
                                   <SelectItem value="recurring">Recurring</SelectItem>
                                   <SelectItem value="oneTime">One-Time</SelectItem>
                                   <SelectItem value="usage">Usage</SelectItem>
+                                  <SelectItem value="prepaid">Prepaid</SelectItem>
+                                  <SelectItem value="billableTime">Billable Time</SelectItem>
+                                  <SelectItem value="billableTravelExpense">Billable Travel Expense</SelectItem>
+                                  <SelectItem value="billablePassThrough">Billable Pass Through</SelectItem>
                                 </SelectContent>
                               </Select>
                             </div>
@@ -493,15 +518,15 @@ export default function CreateProductPage() {
                               <div className="space-y-2">
                                 <Label htmlFor={`pricing-term-${index}`}>Pricing Term *</Label>
                                 <Select
-                                  value={line.lineType === 'oneTime' ? 'once' : (line.pricingTerm || 'monthly')}
+                                  value={(line.lineType === 'oneTime' || line.lineType === 'prepaid') ? 'once' : (line.pricingTerm || 'monthly')}
                                   onValueChange={(value) => updateProductLine(index, 'pricingTerm', value as Term)}
-                                  disabled={line.lineType === 'oneTime'}
+                                  disabled={line.lineType === 'oneTime' || line.lineType === 'prepaid'}
                                 >
                                   <SelectTrigger id={`pricing-term-${index}`}>
                                     <SelectValue />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {line.lineType === 'oneTime' ? (
+                                    {(line.lineType === 'oneTime' || line.lineType === 'prepaid') ? (
                                       <SelectItem value="once">Once</SelectItem>
                                     ) : (
                                       <>
@@ -525,13 +550,17 @@ export default function CreateProductPage() {
                               </div>
                             )}
 
-                            {/* Price Model - Show for recurring and usage lines */}
-                            {(line.lineType === 'recurring' || line.lineType === 'usage') && (
+                            {/* Price Model - Show for recurring, prepaid, and usage lines */}
+                            {(line.lineType === 'recurring' || line.lineType === 'usage' || line.lineType === 'prepaid') && (
                               <div className="space-y-2">
                                 <Label htmlFor={`price-model-${index}`}>Price Model *</Label>
                                 {line.lineType === 'usage' ? (
                                   <div className="h-9 flex items-center text-sm font-medium px-3 border rounded-md bg-muted">
                                     Rate Card
+                                  </div>
+                                ) : line.lineType === 'prepaid' ? (
+                                  <div className="h-9 flex items-center text-sm font-medium px-3 border rounded-md bg-muted">
+                                    Per Unit
                                   </div>
                                 ) : (
                                   <Select
@@ -553,18 +582,20 @@ export default function CreateProductPage() {
                               </div>
                             )}
 
-                            {/* Unit of Measure - Show for recurring and one-time */}
-                            {(line.lineType === 'recurring' || line.lineType === 'oneTime') && (
+                            {/* Unit of Measure - Show for recurring, one-time, and prepaid */}
+                            {(line.lineType === 'recurring' || line.lineType === 'oneTime' || line.lineType === 'prepaid') && (
                               <div className="space-y-2">
                                 <Label htmlFor={`unit-of-measure-${index}`}>Unit of Measure</Label>
                                 <Select
-                                  value={line.unitOfMeasure || ''}
+                                  value={line.lineType === 'prepaid' ? 'credit' : (line.unitOfMeasure || '')}
                                   onValueChange={(value) => updateProductLine(index, 'unitOfMeasure', value)}
+                                  disabled={line.lineType === 'prepaid'}
                                 >
                                   <SelectTrigger id={`unit-of-measure-${index}`}>
                                     <SelectValue placeholder="Select unit" />
                                   </SelectTrigger>
                                   <SelectContent>
+                                    <SelectItem value="credit">Credit</SelectItem>
                                     <SelectItem value="each">Each</SelectItem>
                                     <SelectItem value="seat">Seat</SelectItem>
                                     <SelectItem value="license">License</SelectItem>
@@ -654,8 +685,6 @@ export default function CreateProductPage() {
                                             <SelectContent>
                                               <SelectItem value="PAYG">PAYG</SelectItem>
                                               <SelectItem value="minimumCommit">Minimum Commit</SelectItem>
-                                              <SelectItem value="prepaid">Prepaid</SelectItem>
-                                              <SelectItem value="consumption">Consumption</SelectItem>
                                             </SelectContent>
                                           </Select>
                                         </div>
@@ -842,7 +871,7 @@ export default function CreateProductPage() {
                                             </Select>
                                           </div>
                                         )}
-                                        {(entry.usageType === 'allowance' || entry.usageType === 'prepaid') && (
+                                        {(entry.usageType === 'allowance') && (
                                           <>
                                             <div className="space-y-1">
                                               <Label className="text-xs">Allowance Amount</Label>
@@ -897,7 +926,7 @@ export default function CreateProductPage() {
                             </div>
                           )}
 
-                          {line.lineType === 'recurring' && (
+                          {(line.lineType === 'recurring' || line.lineType === 'prepaid') && (
                             <div className="space-y-3">
                               <div className="flex items-center space-x-2">
                                 <input
@@ -905,14 +934,17 @@ export default function CreateProductPage() {
                                   id={`has-usage-${index}`}
                                   checked={line.hasUsage || false}
                                   onChange={(e) => updateProductLine(index, 'hasUsage', e.target.checked)}
-                                  className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                                  disabled={line.lineType === 'prepaid'}
+                                  className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
                                 />
-                                <Label htmlFor={`has-usage-${index}`} className="font-medium">
-                                  Has Usage Component
+                                <Label htmlFor={`has-usage-${index}`} className={`font-medium ${line.lineType === 'prepaid' ? 'text-muted-foreground' : ''}`}>
+                                  Has Usage Component {line.lineType === 'prepaid' && '(Required)'}
                                 </Label>
                               </div>
                               <p className="text-xs text-muted-foreground ml-6">
-                                Enable usage-based charges linked to this recurring line
+                                {line.lineType === 'prepaid'
+                                  ? 'Prepaid lines always require usage tracking for consumption and optional overage'
+                                  : 'Enable usage-based charges linked to this recurring line'}
                               </p>
 
                               {line.hasUsage && line.usageLine && (
@@ -982,7 +1014,9 @@ export default function CreateProductPage() {
                                                       <SelectValue />
                                                     </SelectTrigger>
                                                     <SelectContent>
-                                                      <SelectItem value="allowance">Allowance</SelectItem>
+                                                      {line.lineType === 'recurring' && (
+                                                        <SelectItem value="allowance">Allowance</SelectItem>
+                                                      )}
                                                       <SelectItem value="consumption">Consumption</SelectItem>
                                                       <SelectItem value="overage">Overage</SelectItem>
                                                     </SelectContent>
@@ -1128,7 +1162,7 @@ export default function CreateProductPage() {
                                                     </Select>
                                                   </div>
                                                 )}
-                                                {(entry.usageType === 'allowance' || entry.usageType === 'prepaid') && (
+                                                {(entry.usageType === 'allowance') && (
                                                   <>
                                                     <div className="space-y-1">
                                                       <Label className="text-xs">Allowance Amount</Label>

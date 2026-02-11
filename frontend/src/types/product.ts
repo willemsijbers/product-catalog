@@ -1,7 +1,7 @@
 // Product Catalog V5 Types
 // Based on Everest Product Catalog V5 Architecture
 
-export type LineType = 'recurring' | 'oneTime' | 'usage';
+export type LineType = 'recurring' | 'oneTime' | 'usage' | 'prepaid' | 'billableTime' | 'billableTravelExpense' | 'billablePassThrough';
 
 export type PriceModel =
   | 'flat'
@@ -13,7 +13,6 @@ export type PriceModel =
 export type UsageType =
   | 'PAYG'
   | 'minimumCommit'
-  | 'prepaid'
   | 'consumption'
   | 'allowance'
   | 'overage';
