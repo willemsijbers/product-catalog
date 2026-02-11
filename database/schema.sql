@@ -35,8 +35,8 @@ CREATE TABLE IF NOT EXISTS Product (
 CREATE TABLE IF NOT EXISTS ProductLine (
     productLineNumber TEXT PRIMARY KEY,
     productNumber TEXT NOT NULL,
-    lineType TEXT NOT NULL CHECK(lineType IN ('recurring', 'oneTime', 'usage', 'billableTime', 'billableTravelExpense', 'billablePassThrough')),
-    priceModel TEXT NOT NULL CHECK(priceModel IN ('flat', 'perUnit', 'tiered', 'volume', 'stairstep', 'rateCard')),
+    lineType TEXT NOT NULL CHECK(lineType IN ('recurring', 'oneTime', 'usage', 'billableTime', 'billableTravelExpense', 'billablePassThrough', 'prepaid')),
+    priceModel TEXT CHECK(priceModel IN ('flat', 'perUnit', 'tiered', 'volume', 'stairstep', 'rateCard')),
     pricingTerm TEXT CHECK(pricingTerm IN ('once', 'monthly', 'biMonthly', 'quarterly', 'semiAnnually', 'annually', 'weekly', 'custom', 'template', 'allAtOnce')),
     unitOfMeasure TEXT,
     hasBeenUsed INTEGER DEFAULT 0 CHECK(hasBeenUsed IN (0, 1)),
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS ProductLine (
     FOREIGN KEY (parentLine) REFERENCES ProductLine(productLineNumber) ON DELETE CASCADE,
 
     -- P0 Constraints: hasUsage and parentLine patterns
-    CHECK (hasUsage = 0 OR lineType = 'recurring'),
+    CHECK (hasUsage = 0 OR lineType IN ('recurring', 'prepaid')),
     CHECK (parentLine IS NULL OR lineType = 'usage'),
     CHECK (parentLine IS NULL OR parentLine != productLineNumber),
 
@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS RateCardEntry (
     rateCardEntryNumber TEXT PRIMARY KEY,
     productLineId TEXT NOT NULL,
     identifier TEXT,
-    usageType TEXT NOT NULL CHECK(usageType IN ('PAYG', 'allowance', 'consumption', 'overage', 'minimumCommit', 'prepaid')),
+    usageType TEXT NOT NULL CHECK(usageType IN ('PAYG', 'allowance', 'consumption', 'overage', 'minimumCommit')),
     usageUnitOfMeasure TEXT,
     conversion REAL,
     billableUnitOfMeasure TEXT,
@@ -91,8 +91,7 @@ CREATE TABLE IF NOT EXISTS RateCardEntry (
     CHECK (rolloverDuration IS NULL OR rollover = 1),
     CHECK (maximumRolloverLimit IS NULL OR rollover = 1),
     CHECK (allowance IS NULL OR usageType = 'allowance'),
-    CHECK (conversion IS NULL OR conversion > 0),
-    CHECK (expiration IS NULL OR usageType = 'prepaid')
+    CHECK (conversion IS NULL OR conversion > 0)
 );
 
 -- ============================================================================

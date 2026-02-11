@@ -144,13 +144,16 @@ export default function CreateProductPage() {
     // When lineType changes to billable types, set invoice frequency and appropriate defaults
     if (field === 'lineType' && ['billableTime', 'billableTravelExpense', 'billablePassThrough'].includes(value)) {
       updatedLines[index].pricingTerm = 'monthly'; // Default invoice frequency
-      // Set sensible default price models
+
       if (value === 'billableTime') {
+        // Billable Time: needs rate card and unit of measure (e.g., hour)
         updatedLines[index].priceModel = 'rateCard'; // Different rates for different roles
-      } else if (value === 'billableTravelExpense') {
-        updatedLines[index].priceModel = 'perUnit'; // Per mile, per trip, etc.
-      } else if (value === 'billablePassThrough') {
-        updatedLines[index].priceModel = 'flat'; // Pass through exact cost
+        updatedLines[index].unitOfMeasure = 'hour';
+      } else {
+        // Billable Travel Expense & Pass-Through: rates come from external systems
+        // Clear price model and unit of measure as they're not applicable
+        delete updatedLines[index].priceModel;
+        delete updatedLines[index].unitOfMeasure;
       }
     }
 
@@ -596,8 +599,8 @@ export default function CreateProductPage() {
                               </div>
                             )}
 
-                            {/* Price Model - Show for all line types except oneTime */}
-                            {line.lineType !== 'oneTime' && (
+                            {/* Price Model - Show for recurring, usage, prepaid, and billableTime */}
+                            {['recurring', 'usage', 'prepaid', 'billableTime'].includes(line.lineType) && (
                               <div className="space-y-2">
                                 <Label htmlFor={`price-model-${index}`}>Price Model *</Label>
                                 {line.lineType === 'usage' ? (
@@ -628,8 +631,8 @@ export default function CreateProductPage() {
                               </div>
                             )}
 
-                            {/* Unit of Measure - Show for all line types except usage */}
-                            {line.lineType !== 'usage' && (
+                            {/* Unit of Measure - Show for recurring, oneTime, prepaid, and billableTime */}
+                            {['recurring', 'oneTime', 'prepaid', 'billableTime'].includes(line.lineType) && (
                               <div className="space-y-2">
                                 <Label htmlFor={`unit-of-measure-${index}`}>Unit of Measure</Label>
                                 <Select
