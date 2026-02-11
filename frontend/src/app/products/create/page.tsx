@@ -141,6 +141,19 @@ export default function CreateProductPage() {
       }
     }
 
+    // When lineType changes to billable types, set invoice frequency and appropriate defaults
+    if (field === 'lineType' && ['billableTime', 'billableTravelExpense', 'billablePassThrough'].includes(value)) {
+      updatedLines[index].pricingTerm = 'monthly'; // Default invoice frequency
+      // Set sensible default price models
+      if (value === 'billableTime') {
+        updatedLines[index].priceModel = 'rateCard'; // Different rates for different roles
+      } else if (value === 'billableTravelExpense') {
+        updatedLines[index].priceModel = 'perUnit'; // Per mile, per trip, etc.
+      } else if (value === 'billablePassThrough') {
+        updatedLines[index].priceModel = 'flat'; // Pass through exact cost
+      }
+    }
+
     // When hasUsage is toggled on for a recurring line, add a usage line reference
     if (field === 'hasUsage' && value === true && updatedLines[index].lineType === 'recurring') {
       updatedLines[index].usageLine = {
@@ -525,9 +538,9 @@ export default function CreateProductPage() {
                             </div>
                           </div>
 
-                          {/* Pricing Term - Show for recurring and one-time only, N/A for usage */}
+                          {/* Pricing Term / Invoice Frequency - varies by line type */}
                           <div className="grid grid-cols-2 gap-4">
-                            {line.lineType !== 'usage' ? (
+                            {['recurring', 'oneTime', 'prepaid'].includes(line.lineType) ? (
                               <div className="space-y-2">
                                 <Label htmlFor={`pricing-term-${index}`}>Pricing Term *</Label>
                                 <Select
@@ -554,6 +567,26 @@ export default function CreateProductPage() {
                                   </SelectContent>
                                 </Select>
                               </div>
+                            ) : ['billableTime', 'billableTravelExpense', 'billablePassThrough'].includes(line.lineType) ? (
+                              <div className="space-y-2">
+                                <Label htmlFor={`invoice-frequency-${index}`}>Invoice Frequency *</Label>
+                                <Select
+                                  value={line.pricingTerm || 'monthly'}
+                                  onValueChange={(value) => updateProductLine(index, 'pricingTerm', value as Term)}
+                                >
+                                  <SelectTrigger id={`invoice-frequency-${index}`}>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="weekly">Weekly</SelectItem>
+                                    <SelectItem value="monthly">Monthly</SelectItem>
+                                    <SelectItem value="biMonthly">Bi-Monthly</SelectItem>
+                                    <SelectItem value="quarterly">Quarterly</SelectItem>
+                                    <SelectItem value="semiAnnually">Semi-Annually</SelectItem>
+                                    <SelectItem value="annually">Annually</SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </div>
                             ) : (
                               <div className="space-y-2">
                                 <Label>Pricing Term</Label>
@@ -563,8 +596,8 @@ export default function CreateProductPage() {
                               </div>
                             )}
 
-                            {/* Price Model - Show for recurring, prepaid, and usage lines */}
-                            {(line.lineType === 'recurring' || line.lineType === 'usage' || line.lineType === 'prepaid') && (
+                            {/* Price Model - Show for all line types except oneTime */}
+                            {line.lineType !== 'oneTime' && (
                               <div className="space-y-2">
                                 <Label htmlFor={`price-model-${index}`}>Price Model *</Label>
                                 {line.lineType === 'usage' ? (
@@ -595,8 +628,8 @@ export default function CreateProductPage() {
                               </div>
                             )}
 
-                            {/* Unit of Measure - Show for recurring, one-time, and prepaid */}
-                            {(line.lineType === 'recurring' || line.lineType === 'oneTime' || line.lineType === 'prepaid') && (
+                            {/* Unit of Measure - Show for all line types except usage */}
+                            {line.lineType !== 'usage' && (
                               <div className="space-y-2">
                                 <Label htmlFor={`unit-of-measure-${index}`}>Unit of Measure</Label>
                                 <Select
