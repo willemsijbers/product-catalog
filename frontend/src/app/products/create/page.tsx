@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Trash2, ChevronDown, ChevronRight, ArrowLeft } from 'lucide-react';
-import type { CreateProductInput, CreateProductLineInput, CreateRateCardEntryInput, LineType, PriceModel, Term, UsageType } from '@/types/product';
+import type { CreateProductInput, CreateProductLineInput, CreateRateCardEntryInput, LineType, PriceModel, Term, UsageType, BundleComponentInput, ProductWithLines } from '@/types/product';
 
 export default function CreateProductPage() {
   const router = useRouter();
@@ -20,11 +20,18 @@ export default function CreateProductPage() {
     productFamily: 'software',
     productType: 'sub',
     productLines: [],
+    isBundleProduct: false,
+    bundleComponents: [],
   });
 
   const [expandedLines, setExpandedLines] = useState<Set<number>>(new Set());
   const [productCodeExists, setProductCodeExists] = useState(false);
   const [checkingProductCode, setCheckingProductCode] = useState(false);
+
+  // Bundle-specific state
+  const [availableProducts, setAvailableProducts] = useState<ProductWithLines[]>([]);
+  const [selectedComponentProducts, setSelectedComponentProducts] = useState<Map<number, string[]>>(new Map());
+  const [bundleErrors, setBundleErrors] = useState<Map<number, string[]>>(new Map());
 
   // Helper functions for display formatting
   const formatLineType = (lineType: string) => {
@@ -86,6 +93,109 @@ export default function CreateProductPage() {
     return () => clearTimeout(timer);
   }, [product.productCode]);
 
+  // Fetch available products for bundle component selection
+  useEffect(() => {
+    if (product.isBundleProduct) {
+      fetchAvailableProducts();
+    }
+  }, [product.isBundleProduct]);
+
+  const fetchAvailableProducts = async () => {
+    try {
+      const response = await fetch('http://localhost:3000/api/products');
+      if (response.ok) {
+        const products = await response.json();
+        // Fetch product lines for each product
+        const productsWithLines = await Promise.all(
+          products.map(async (p: any) => {
+            try {
+              const linesResponse = await fetch(`http://localhost:3000/api/products/${p.productNumber}/lines`);
+              const lines = await linesResponse.json();
+              return {
+                productNumber: p.productNumber,
+                productCode: p.productCode,
+                productName: p.productName,
+                productLines: lines.map((l: any) => ({
+                  productLineNumber: l.productLineNumber,
+                  name: l.name,
+                  lineType: l.lineType,
+                  priceModel: l.priceModel
+                }))
+              };
+            } catch {
+              return {
+                productNumber: p.productNumber,
+                productCode: p.productCode,
+                productName: p.productName,
+                productLines: []
+              };
+            }
+          })
+        );
+        setAvailableProducts(productsWithLines.filter(p => p.productLines.length > 0));
+      }
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    }
+  };
+
+  // Validate bundle components for a specific bundle line
+  const validateBundleComponents = (lineIndex: number): string[] => {
+    const errors: string[] = [];
+    const components = (product.bundleComponents || []).filter(
+      c => c.bundleProductLineIndex === lineIndex
+    );
+
+    if (components.length === 0) {
+      errors.push('Bundle line must have at least one component');
+      return errors;
+    }
+
+    // Validate allocation percentage for parent-priced components
+    const parentPricedComponents = components.filter(
+      c => c.componentPricingLevel === 'parent' && !c.isOptional
+    );
+
+    if (parentPricedComponents.length > 0) {
+      const allocationSum = parentPricedComponents.reduce(
+        (sum, c) => sum + (c.allocationPercentage || 0),
+        0
+      );
+
+      if (Math.abs(allocationSum - 100) > 0.01) {
+        errors.push(`Allocation percentages must sum to 100% (currently ${allocationSum.toFixed(1)}%)`);
+      }
+    }
+
+    // Check for duplicate component lines
+    const lineNumbers = components.map(c => c.componentProductLineNumber);
+    const duplicates = lineNumbers.filter((num, idx) => lineNumbers.indexOf(num) !== idx);
+    if (duplicates.length > 0) {
+      errors.push('Duplicate component product lines detected');
+    }
+
+    return errors;
+  };
+
+  // Calculate allocation status for display
+  const getAllocationStatus = (components: BundleComponentInput[]) => {
+    const parentPricedComponents = components.filter(
+      c => c.componentPricingLevel === 'parent' && !c.isOptional
+    );
+
+    const total = parentPricedComponents.reduce(
+      (sum, c) => sum + (c.allocationPercentage || 0),
+      0
+    );
+
+    return {
+      total,
+      remaining: 100 - total,
+      isValid: Math.abs(total - 100) < 0.01,
+      color: Math.abs(total - 100) < 0.01 ? 'green' : total < 100 ? 'yellow' : 'red'
+    };
+  };
+
   const addProductLine = () => {
     setProduct({
       ...product,
@@ -119,7 +229,10 @@ export default function CreateProductPage() {
       updatedLines[index].unitOfMeasure = 'credit';
       updatedLines[index].priceModel = 'perUnit';
       updatedLines[index].hasUsage = true;
+      updatedLines[index].isCurrency = false; // Default to credit-based
       // Automatically create usage line for prepaid
+      // IMPORTANT: billableUnitOfMeasure must match parent line's unitOfMeasure
+      // to ensure drawdown happens in the same unit as the balance
       updatedLines[index].usageLine = {
         name: `${updatedLines[index].name || 'Prepaid'} Consumption`,
         priceModel: 'rateCard',
@@ -127,10 +240,36 @@ export default function CreateProductPage() {
           {
             usageType: 'consumption',
             identifier: '',
-            conversion: 0.1,
+            conversion: 1, // No conversion (1:1 ratio)
+            billableUnitOfMeasure: 'credit', // Matches parent unitOfMeasure (credit-based default)
+            // usageUnitOfMeasure left blank - users configure based on their use case
           }
         ],
       };
+    }
+
+    // When isCurrency changes for prepaid, adjust unitOfMeasure and billableUnitOfMeasure
+    // CRITICAL RULE: billableUnitOfMeasure MUST ALWAYS match parent line's unitOfMeasure
+    // This ensures consumption draws down in the same unit as the balance
+    // - Credit mode: unitOfMeasure = 'credit' → billableUnitOfMeasure = 'credit'
+    // - Currency mode: unitOfMeasure = undefined (N/A) → billableUnitOfMeasure = undefined (N/A = currency)
+    // Note: conversion stays 0 for consumption - it draws down directly from balance
+    if (field === 'isCurrency' && updatedLines[index].lineType === 'prepaid') {
+      if (value) {
+        // Currency mode: both unitOfMeasure and billableUnitOfMeasure = undefined (N/A = currency)
+        updatedLines[index].unitOfMeasure = undefined;
+        if (updatedLines[index].usageLine?.rateCardEntries?.[0]) {
+          updatedLines[index].usageLine!.rateCardEntries![0].billableUnitOfMeasure = undefined; // Must match parent (N/A = currency)
+          // conversion remains 0 - consumption always draws down directly
+        }
+      } else {
+        // Credit mode: both unitOfMeasure and billableUnitOfMeasure = 'credit'
+        updatedLines[index].unitOfMeasure = 'credit';
+        if (updatedLines[index].usageLine?.rateCardEntries?.[0]) {
+          updatedLines[index].usageLine!.rateCardEntries![0].billableUnitOfMeasure = 'credit'; // Must match parent
+          // conversion remains 0 - consumption always draws down directly
+        }
+      }
     }
 
     // When lineType changes to usage, set priceModel to 'rateCard' (required by DB constraint)
@@ -242,6 +381,29 @@ export default function CreateProductPage() {
     console.log('Form submitted!');
     console.log('Product data:', product);
 
+    // Validate bundle components if bundle product
+    if (product.isBundleProduct) {
+      const allErrors = new Map<number, string[]>();
+      let hasErrors = false;
+
+      product.productLines.forEach((_, lineIndex) => {
+        const errors = validateBundleComponents(lineIndex);
+        if (errors.length > 0) {
+          allErrors.set(lineIndex, errors);
+          hasErrors = true;
+        }
+      });
+
+      if (hasErrors) {
+        setBundleErrors(allErrors);
+        const errorMessages = Array.from(allErrors.entries())
+          .map(([lineIndex, errors]) => `Line ${lineIndex + 1}: ${errors.join(', ')}`)
+          .join('\n');
+        alert(`Please fix bundle component validation errors:\n\n${errorMessages}`);
+        return;
+      }
+    }
+
     // Transform the data to include usage lines as separate lines
     const transformedProductLines: any[] = [];
     product.productLines.forEach((line, index) => {
@@ -273,6 +435,8 @@ export default function CreateProductPage() {
       const payload = {
         ...product,
         productLines: transformedProductLines,
+        isBundleProduct: product.isBundleProduct || false,
+        bundleComponents: product.bundleComponents || [],
       };
 
       console.log('Sending payload:', payload);
@@ -301,7 +465,11 @@ export default function CreateProductPage() {
         throw new Error(errorMessage);
       }
 
-      alert(`Product created successfully!\n\nProduct Number: ${data.productNumber}\nProduct Lines: ${data.productLines?.length || 0} created`);
+      const successMessage = product.isBundleProduct
+        ? `Bundle product created successfully!\n\nProduct Number: ${data.productNumber}\nProduct Lines: ${data.productLines?.length || 0} created\nBundle Components: ${data.bundleComponentsCreated || 0} created`
+        : `Product created successfully!\n\nProduct Number: ${data.productNumber}\nProduct Lines: ${data.productLines?.length || 0} created`;
+
+      alert(successMessage);
 
       // Navigate back to products list
       router.push('/products');
@@ -330,6 +498,43 @@ export default function CreateProductPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Product Type Selection */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Product Type</CardTitle>
+            <CardDescription>Choose whether to create a standard product or a bundle</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="productType"
+                  checked={!product.isBundleProduct}
+                  onChange={() => setProduct({ ...product, isBundleProduct: false, bundleComponents: [] })}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm font-medium">Standard Product</span>
+              </label>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="productType"
+                  checked={product.isBundleProduct === true}
+                  onChange={() => setProduct({ ...product, isBundleProduct: true })}
+                  className="w-4 h-4"
+                />
+                <span className="text-sm font-medium">Bundle Product</span>
+              </label>
+            </div>
+            {product.isBundleProduct && (
+              <p className="text-sm text-muted-foreground mt-2">
+                Bundle products combine multiple product lines with configurable pricing allocation.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
         {/* Product Information */}
         <Card>
           <CardHeader>
@@ -442,6 +647,74 @@ export default function CreateProductPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Component Products Selection - Bundle Only */}
+        {product.isBundleProduct && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Component Products</CardTitle>
+              <CardDescription>
+                Select which products are included in this bundle (what you're selling)
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {availableProducts.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>No products available to add as components.</p>
+                  <p className="text-sm">Create standard products first, then create bundles.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    {availableProducts.map(p => {
+                      const isSelected = selectedComponentProducts.get(-1)?.includes(p.productNumber) || false;
+                      return (
+                        <div
+                          key={p.productNumber}
+                          className={`border rounded-lg p-3 cursor-pointer transition-colors ${
+                            isSelected ? 'border-primary bg-primary/5' : 'border-gray-200 hover:border-gray-300'
+                          }`}
+                          onClick={() => {
+                            const currentSelected = selectedComponentProducts.get(-1) || [];
+                            const newSelected = isSelected
+                              ? currentSelected.filter(num => num !== p.productNumber)
+                              : [...currentSelected, p.productNumber];
+                            const newMap = new Map(selectedComponentProducts);
+                            newMap.set(-1, newSelected);
+                            setSelectedComponentProducts(newMap);
+                          }}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  checked={isSelected}
+                                  onChange={() => {}}
+                                  className="w-4 h-4"
+                                />
+                                <p className="font-medium text-sm">{p.productName}</p>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">{p.productCode}</p>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {p.productLines.length} line{p.productLines.length !== 1 ? 's' : ''}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {(selectedComponentProducts.get(-1)?.length || 0) > 0 && (
+                    <div className="text-sm text-muted-foreground">
+                      {selectedComponentProducts.get(-1)?.length || 0} product(s) selected
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Product Lines */}
         <Card>
@@ -631,15 +904,42 @@ export default function CreateProductPage() {
                                 )}
                               </div>
                             )}
+                          </div>
 
-                            {/* Unit of Measure - Show for recurring, oneTime, prepaid, and billableTime */}
-                            {['recurring', 'oneTime', 'prepaid', 'billableTime'].includes(line.lineType) && (
-                              <div className="space-y-2">
-                                <Label htmlFor={`unit-of-measure-${index}`}>Unit of Measure</Label>
+                          {/* Currency Balance Toggle - Only for prepaid lines */}
+                          {line.lineType === 'prepaid' && (
+                            <div className="space-y-3">
+                              <div className="flex items-center space-x-2">
+                                <input
+                                  type="checkbox"
+                                  id={`is-currency-${index}`}
+                                  checked={line.isCurrency || false}
+                                  onChange={(e) => updateProductLine(index, 'isCurrency', e.target.checked)}
+                                  className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                                />
+                                <Label htmlFor={`is-currency-${index}`} className="font-medium">
+                                  Currency Balance
+                                </Label>
+                              </div>
+                              <p className="text-xs text-muted-foreground ml-6">
+                                Enable this for prepaid dollar balances (e.g., $10,000 USD). Disable for credit-based prepaid (e.g., 1,000 credits).
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Unit of Measure - Show for recurring, oneTime, prepaid, and billableTime */}
+                          {['recurring', 'oneTime', 'prepaid', 'billableTime'].includes(line.lineType) && (
+                            <div className="space-y-2">
+                              <Label htmlFor={`unit-of-measure-${index}`}>Unit of Measure</Label>
+                              {line.lineType === 'prepaid' && line.isCurrency ? (
+                                <div className="h-9 flex items-center text-sm text-muted-foreground px-3 border rounded-md bg-muted">
+                                  N/A
+                                </div>
+                              ) : (
                                 <Select
                                   value={line.lineType === 'prepaid' ? 'credit' : (line.unitOfMeasure || '')}
                                   onValueChange={(value) => updateProductLine(index, 'unitOfMeasure', value)}
-                                  disabled={line.lineType === 'prepaid'}
+                                  disabled={line.lineType === 'prepaid' && !line.isCurrency}
                                 >
                                   <SelectTrigger id={`unit-of-measure-${index}`}>
                                     <SelectValue placeholder="Select unit" />
@@ -659,9 +959,9 @@ export default function CreateProductPage() {
                                     <SelectItem value="apiCall">API Call</SelectItem>
                                   </SelectContent>
                                 </Select>
-                              </div>
-                            )}
-                          </div>
+                              )}
+                            </div>
+                          )}
 
                           {/* Rate Card Configuration for Usage Lines */}
                           {line.lineType === 'usage' && (
@@ -1081,20 +1381,6 @@ export default function CreateProductPage() {
                                                     placeholder="billable-component-id"
                                                   />
                                                 </div>
-                                                {/* Conversion Factor - Hide for allowance (no credits) */}
-                                                {entry.usageType !== 'allowance' && (
-                                                  <div className="space-y-1">
-                                                    <Label className="text-xs">Conversion Factor</Label>
-                                                    <Input
-                                                      className="h-8 text-xs"
-                                                      type="number"
-                                                      step="0.01"
-                                                      value={entry.conversion || 1}
-                                                      onChange={(e) => updateRateCardEntry(index, entryIndex, 'conversion', parseFloat(e.target.value))}
-                                                      placeholder="1.0"
-                                                    />
-                                                  </div>
-                                                )}
                                                 {/* For allowance: single Unit of Measure (usage = billable) */}
                                                 {entry.usageType === 'allowance' ? (
                                                   <div className="space-y-1">
@@ -1125,6 +1411,7 @@ export default function CreateProductPage() {
                                                   </div>
                                                 ) : (
                                                   <>
+                                                    {/* Step 1: Usage Unit of Measure (what comes in) */}
                                                     <div className="space-y-1">
                                                       <Label className="text-xs">Usage Unit of Measure</Label>
                                                       <Select
@@ -1147,27 +1434,59 @@ export default function CreateProductPage() {
                                                         </SelectContent>
                                                       </Select>
                                                     </div>
+                                                    {/* Step 2: Conversion Factor (how to convert) */}
+                                                    <div className="space-y-1">
+                                                      <Label className="text-xs">Conversion Factor</Label>
+                                                      <Input
+                                                        className="h-8 text-xs"
+                                                        type="number"
+                                                        step="0.01"
+                                                        value={entry.conversion ?? 1}
+                                                        onChange={(e) => updateRateCardEntry(index, entryIndex, 'conversion', parseFloat(e.target.value))}
+                                                        placeholder="1.0"
+                                                        disabled={entry.usageType === 'consumption' && line.lineType === 'prepaid'}
+                                                      />
+                                                      {entry.usageType === 'consumption' && line.lineType === 'prepaid' && (
+                                                        <p className="text-xs text-muted-foreground">
+                                                          No conversion (1:1 ratio)
+                                                        </p>
+                                                      )}
+                                                    </div>
+                                                    {/* Step 3: Billable Unit of Measure (what gets billed) */}
                                                     <div className="space-y-1">
                                                       <Label className="text-xs">Billable Unit of Measure</Label>
-                                                      <Select
-                                                        value={entry.billableUnitOfMeasure || ''}
-                                                        onValueChange={(value) => updateRateCardEntry(index, entryIndex, 'billableUnitOfMeasure', value)}
-                                                      >
-                                                        <SelectTrigger className="h-8 text-xs">
-                                                          <SelectValue placeholder="Select" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                          <SelectItem value="each">Each</SelectItem>
-                                                          <SelectItem value="seat">Seat</SelectItem>
-                                                          <SelectItem value="user">User</SelectItem>
-                                                          <SelectItem value="gb">GB</SelectItem>
-                                                          <SelectItem value="tb">TB</SelectItem>
-                                                          <SelectItem value="hour">Hour</SelectItem>
-                                                          <SelectItem value="transaction">Transaction</SelectItem>
-                                                          <SelectItem value="apiCall">API Call</SelectItem>
-                                                          <SelectItem value="request">Request</SelectItem>
-                                                        </SelectContent>
-                                                      </Select>
+                                                      {/* For prepaid consumption: billableUoM must match parent unitOfMeasure (non-editable) */}
+                                                      {entry.usageType === 'consumption' && line.lineType === 'prepaid' ? (
+                                                        <>
+                                                          <div className="h-8 flex items-center text-xs px-3 border rounded-md bg-muted">
+                                                            {line.isCurrency ? 'N/A (Currency)' : 'Credit'}
+                                                          </div>
+                                                          <p className="text-xs text-muted-foreground">
+                                                            Must match parent line's unit of measure
+                                                          </p>
+                                                        </>
+                                                      ) : (
+                                                        <Select
+                                                          value={entry.billableUnitOfMeasure || ''}
+                                                          onValueChange={(value) => updateRateCardEntry(index, entryIndex, 'billableUnitOfMeasure', value)}
+                                                        >
+                                                          <SelectTrigger className="h-8 text-xs">
+                                                            <SelectValue placeholder="Select" />
+                                                          </SelectTrigger>
+                                                          <SelectContent>
+                                                            <SelectItem value="each">Each</SelectItem>
+                                                            <SelectItem value="seat">Seat</SelectItem>
+                                                            <SelectItem value="user">User</SelectItem>
+                                                            <SelectItem value="gb">GB</SelectItem>
+                                                            <SelectItem value="tb">TB</SelectItem>
+                                                            <SelectItem value="hour">Hour</SelectItem>
+                                                            <SelectItem value="transaction">Transaction</SelectItem>
+                                                            <SelectItem value="apiCall">API Call</SelectItem>
+                                                            <SelectItem value="request">Request</SelectItem>
+                                                            <SelectItem value="credit">Credit</SelectItem>
+                                                          </SelectContent>
+                                                        </Select>
+                                                      )}
                                                     </div>
                                                   </>
                                                 )}
@@ -1303,6 +1622,281 @@ export default function CreateProductPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Bundle Components Configuration */}
+        {product.isBundleProduct && product.productLines.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Bundle Component Configuration</CardTitle>
+              <CardDescription>
+                Configure pricing and quantity for component lines in each bundle line
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {product.productLines.map((bundleLine, bundleLineIndex) => {
+                const lineComponents = (product.bundleComponents || []).filter(
+                  c => c.bundleProductLineIndex === bundleLineIndex
+                );
+                const allocationStatus = getAllocationStatus(lineComponents);
+                const errors = bundleErrors.get(bundleLineIndex) || [];
+
+                return (
+                  <div key={bundleLineIndex} className="border rounded-lg p-4 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="font-semibold">
+                        {bundleLine.name || `Line ${bundleLineIndex + 1}`}
+                      </h3>
+                      {lineComponents.some(c => c.componentPricingLevel === 'parent' && !c.isOptional) && (
+                        <div className={`text-sm px-3 py-1 rounded-full ${
+                          allocationStatus.isValid ? 'bg-green-100 text-green-800' :
+                          allocationStatus.remaining > 0 ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-red-100 text-red-800'
+                        }`}>
+                          Allocation: {allocationStatus.total.toFixed(1)}% / 100%
+                        </div>
+                      )}
+                    </div>
+
+                    {errors.length > 0 && (
+                      <div className="bg-red-50 border border-red-200 rounded p-3">
+                        <p className="text-sm text-red-800 font-semibold">Validation Errors:</p>
+                        <ul className="text-sm text-red-700 list-disc list-inside">
+                          {errors.map((error, idx) => (
+                            <li key={idx}>{error}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Add Component Form */}
+                    <div className="border-t pt-4 space-y-3">
+                      <h4 className="text-sm font-medium">Add Component Line</h4>
+                      {(selectedComponentProducts.get(-1)?.length || 0) === 0 ? (
+                        <div className="text-sm text-muted-foreground py-3">
+                          No component products selected. Select products at the product level first.
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-2">
+                            <Label>Component Product Line</Label>
+                            <Select
+                              value=""
+                              onValueChange={(productLineNumber) => {
+                                // Find which product this line belongs to
+                                const selectedProductNumbers = selectedComponentProducts.get(-1) || [];
+                                const filteredProducts = availableProducts.filter(p =>
+                                  selectedProductNumbers.includes(p.productNumber)
+                                );
+
+                                let selectedProduct = null;
+                                let selectedLine = null;
+                                for (const p of filteredProducts) {
+                                  const line = p.productLines.find(l => l.productLineNumber === productLineNumber);
+                                  if (line) {
+                                    selectedProduct = p;
+                                    selectedLine = line;
+                                    break;
+                                  }
+                                }
+
+                                if (selectedProduct && selectedLine) {
+                                  const newComponent: BundleComponentInput = {
+                                    bundleProductLineIndex: bundleLineIndex,
+                                    componentProductNumber: selectedProduct.productNumber,
+                                    componentProductLineNumber: selectedLine.productLineNumber,
+                                    componentPricingLevel: 'parent',
+                                    productLineType: selectedLine.lineType as any,
+                                    componentQuantity: 1,
+                                    allocationPercentage: 0,
+                                    isOptional: false
+                                  };
+                                  setProduct({
+                                    ...product,
+                                    bundleComponents: [...(product.bundleComponents || []), newComponent]
+                                  });
+                                }
+                              }}
+                            >
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select component line..." />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(() => {
+                                  const selectedProductNumbers = selectedComponentProducts.get(-1) || [];
+                                  const filteredProducts = availableProducts.filter(p =>
+                                    selectedProductNumbers.includes(p.productNumber)
+                                  );
+
+                                  return filteredProducts.flatMap(p =>
+                                    p.productLines.map(line => (
+                                      <SelectItem key={line.productLineNumber} value={line.productLineNumber}>
+                                        {p.productName} - {line.name} ({line.lineType})
+                                      </SelectItem>
+                                    ))
+                                  );
+                                })()}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Existing Components */}
+                    {lineComponents.length > 0 && (
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-medium">Components ({lineComponents.length})</h4>
+                        {lineComponents.map((component, compIdx) => {
+                          const componentIndex = (product.bundleComponents || []).indexOf(component);
+                          const componentProduct = availableProducts.find(
+                            p => p.productNumber === component.componentProductNumber
+                          );
+                          const componentLine = componentProduct?.productLines.find(
+                            l => l.productLineNumber === component.componentProductLineNumber
+                          );
+
+                          return (
+                            <div key={compIdx} className="border rounded p-3 space-y-3">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="font-medium text-sm">
+                                    {componentProduct?.productName || 'Unknown Product'}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {componentLine?.name || component.componentProductLineNumber}
+                                  </p>
+                                </div>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    const updatedComponents = (product.bundleComponents || []).filter(
+                                      (_, idx) => idx !== componentIndex
+                                    );
+                                    setProduct({ ...product, bundleComponents: updatedComponents });
+                                  }}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
+
+                              <div className="grid grid-cols-3 gap-3">
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Pricing Level</Label>
+                                  <Select
+                                    value={component.componentPricingLevel}
+                                    onValueChange={(value: 'parent' | 'component') => {
+                                      const updatedComponents = [...(product.bundleComponents || [])];
+                                      updatedComponents[componentIndex] = {
+                                        ...component,
+                                        componentPricingLevel: value,
+                                        allocationPercentage: value === 'parent' ? (component.allocationPercentage || 0) : undefined,
+                                        discountPercentage: value === 'component' ? component.discountPercentage : undefined
+                                      };
+                                      setProduct({ ...product, bundleComponents: updatedComponents });
+                                    }}
+                                  >
+                                    <SelectTrigger>
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="parent">Parent</SelectItem>
+                                      <SelectItem value="component">Component</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+
+                                {component.componentPricingLevel === 'parent' ? (
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">Allocation %</Label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      step="0.1"
+                                      value={component.allocationPercentage || 0}
+                                      onChange={(e) => {
+                                        const updatedComponents = [...(product.bundleComponents || [])];
+                                        updatedComponents[componentIndex] = {
+                                          ...component,
+                                          allocationPercentage: parseFloat(e.target.value) || 0
+                                        };
+                                        setProduct({ ...product, bundleComponents: updatedComponents });
+                                      }}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="space-y-1">
+                                    <Label className="text-xs">Discount % <span className="text-muted-foreground">(optional)</span></Label>
+                                    <Input
+                                      type="number"
+                                      min="0"
+                                      max="100"
+                                      step="0.1"
+                                      placeholder="None"
+                                      value={component.discountPercentage ?? ''}
+                                      onChange={(e) => {
+                                        const updatedComponents = [...(product.bundleComponents || [])];
+                                        updatedComponents[componentIndex] = {
+                                          ...component,
+                                          discountPercentage: e.target.value === '' ? undefined : parseFloat(e.target.value)
+                                        };
+                                        setProduct({ ...product, bundleComponents: updatedComponents });
+                                      }}
+                                    />
+                                  </div>
+                                )}
+
+                                <div className="space-y-1">
+                                  <Label className="text-xs">Quantity</Label>
+                                  <Input
+                                    type="number"
+                                    min="1"
+                                    step="1"
+                                    value={component.componentQuantity}
+                                    onChange={(e) => {
+                                      const updatedComponents = [...(product.bundleComponents || [])];
+                                      updatedComponents[componentIndex] = {
+                                        ...component,
+                                        componentQuantity: parseInt(e.target.value) || 1
+                                      };
+                                      setProduct({ ...product, bundleComponents: updatedComponents });
+                                    }}
+                                  />
+                                </div>
+                              </div>
+
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  id={`optional-${componentIndex}`}
+                                  checked={component.isOptional}
+                                  onChange={(e) => {
+                                    const updatedComponents = [...(product.bundleComponents || [])];
+                                    updatedComponents[componentIndex] = {
+                                      ...component,
+                                      isOptional: e.target.checked
+                                    };
+                                    setProduct({ ...product, bundleComponents: updatedComponents });
+                                  }}
+                                  className="w-4 h-4"
+                                />
+                                <Label htmlFor={`optional-${componentIndex}`} className="text-sm cursor-pointer">
+                                  Optional Component
+                                </Label>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Actions */}
         <div className="flex justify-end gap-3">

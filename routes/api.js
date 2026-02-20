@@ -33,6 +33,13 @@ router.get('/products', (req, res) => {
     });
 });
 
+router.get('/products/:productNumber/lines', (req, res) => {
+    req.models.productLine.getByProductNumber(req.params.productNumber, (err, rows) => {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json(rows);
+    });
+});
+
 router.get('/products/:productNumber', (req, res) => {
     req.models.product.getById(req.params.productNumber, (err, product) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -108,7 +115,7 @@ router.delete('/products/:productNumber', (req, res) => {
 
 // ===== PRODUCT + PRODUCT LINES BATCH CREATE =====
 router.post('/products/batch', (req, res) => {
-    const { productCode, name, description, effectiveStartDate, effectiveEndDate, productFamily, productType, productLines } = req.body;
+    const { productCode, name, description, effectiveStartDate, effectiveEndDate, productFamily, productType, productLines, isBundleProduct } = req.body;
 
     // Validate required fields
     if (!productCode || !name) {
@@ -133,7 +140,8 @@ router.post('/products/batch', (req, res) => {
             effectiveEndDate,
             productFamily,
             productType,
-            productStatus: 'active'
+            productStatus: 'active',
+            isBundleProduct: isBundleProduct ? 1 : 0
         };
 
         req.models.product.create(productData, (err) => {
@@ -242,12 +250,7 @@ router.post('/products/batch', (req, res) => {
                     .filter(({ line }) => line.rateCardEntries && line.rateCardEntries.length > 0);
 
                 if (linesWithRateCards.length === 0) {
-                    db.run('COMMIT');
-                    return res.status(201).json({
-                        productNumber,
-                        productLines: Object.values(lineNumberMap),
-                        message: 'Product and product lines created successfully'
-                    });
+                    return createBundleComponents();
                 }
 
                 let rateCardCompleted = 0;
@@ -292,14 +295,76 @@ router.post('/products/batch', (req, res) => {
 
                             rateCardCompleted++;
                             if (rateCardCompleted === totalRateCards && !hasError) {
-                                db.run('COMMIT');
-                                res.status(201).json({
-                                    productNumber,
-                                    productLines: Object.values(lineNumberMap),
-                                    message: 'Product, product lines, and rate cards created successfully'
-                                });
+                                createBundleComponents();
                             }
                         });
+                    });
+                });
+            }
+
+            // Fourth pass: create bundle components if bundle product
+            function createBundleComponents() {
+                const { bundleComponents, isBundleProduct } = req.body;
+
+                if (!isBundleProduct || !bundleComponents || bundleComponents.length === 0) {
+                    db.run('COMMIT');
+                    return res.status(201).json({
+                        productNumber,
+                        productLines: Object.values(lineNumberMap),
+                        message: 'Product and product lines created successfully'
+                    });
+                }
+
+                let componentsCreated = 0;
+                bundleComponents.forEach((component, index) => {
+                    // Map bundleProductLineIndex to actual productLineNumber
+                    const bundleProductLineNumber = lineNumberMap[`line-${component.bundleProductLineIndex}`];
+
+                    if (!bundleProductLineNumber) {
+                        if (!hasError) {
+                            hasError = true;
+                            db.run('ROLLBACK');
+                            return res.status(400).json({
+                                error: 'Invalid bundle product line reference'
+                            });
+                        }
+                        return;
+                    }
+
+                    const bundleComponentNumber = `${productNumber}-BC-${index + 1}`;
+                    const componentData = {
+                        bundleComponentNumber,
+                        bundleProductLine: bundleProductLineNumber,
+                        componentProductLine: component.componentProductLineNumber,
+                        componentPricingLevel: component.componentPricingLevel,
+                        productLineType: component.productLineType,
+                        componentQuantity: component.componentQuantity || 1,
+                        quantityDependency: component.quantityDependency || null,
+                        allocationPercentage: component.allocationPercentage || null,
+                        discountPercentage: component.discountPercentage || null,
+                        isOptional: component.isOptional ? 1 : 0,
+                        description: component.description || null
+                    };
+
+                    req.models.bundleComponent.create(componentData, (err) => {
+                        if (err && !hasError) {
+                            hasError = true;
+                            db.run('ROLLBACK');
+                            return res.status(400).json({
+                                error: `Failed to create bundle component: ${err.message}`
+                            });
+                        }
+
+                        componentsCreated++;
+                        if (componentsCreated === bundleComponents.length && !hasError) {
+                            db.run('COMMIT');
+                            return res.status(201).json({
+                                productNumber,
+                                productLines: Object.values(lineNumberMap),
+                                bundleComponentsCreated: componentsCreated,
+                                message: 'Product, product lines, and bundle components created successfully'
+                            });
+                        }
                     });
                 });
             }
