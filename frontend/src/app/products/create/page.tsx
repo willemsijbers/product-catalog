@@ -760,7 +760,7 @@ export default function CreateProductPage() {
                             )}
                             <span className="font-semibold">{displayName}</span>
                             <span className="text-xs text-muted-foreground">
-                              ({lineTypeLabel} • {formatPriceModel(line.priceModel)})
+                              ({lineTypeLabel}{line.priceModel ? ` • ${formatPriceModel(line.priceModel)}` : ''})
                             </span>
                             {line.hasUsage && (
                               <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">
