@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, Edit } from 'lucide-react';
+import { API_BASE_URL } from '@/lib/config';
 
 interface Product {
   productNumber: string;
@@ -67,7 +68,7 @@ export default function ProductDetailPage() {
 
   const fetchProductDetail = async (productNumber: string) => {
     try {
-      const response = await fetch(`http://localhost:3000/api/products/${productNumber}`);
+      const response = await fetch(`${API_BASE_URL}/api/products/${productNumber}`);
       if (response.ok) {
         const data = await response.json();
         setProduct(data);
@@ -83,7 +84,7 @@ export default function ProductDetailPage() {
 
   const checkPricingExists = async (productNumber: string) => {
     try {
-      const response = await fetch(`http://localhost:3000/api/products/${productNumber}/has-pricing`);
+      const response = await fetch(`${API_BASE_URL}/api/products/${productNumber}/has-pricing`);
       if (response.ok) {
         const data = await response.json();
         setHasPricing(data.hasPricing);

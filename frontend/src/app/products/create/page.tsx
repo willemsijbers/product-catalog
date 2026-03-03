@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, Trash2, ChevronDown, ChevronRight, ArrowLeft } from 'lucide-react';
+import { API_BASE_URL } from '@/lib/config';
 import type { CreateProductInput, CreateProductLineInput, CreateRateCardEntryInput, LineType, PriceModel, Term, UsageType, BundleComponentInput, ProductWithLines } from '@/types/product';
 
 export default function CreateProductPage() {
@@ -69,7 +70,7 @@ export default function CreateProductPage() {
 
     setCheckingProductCode(true);
     try {
-      const response = await fetch(`http://localhost:3000/api/products`);
+      const response = await fetch(`${API_BASE_URL}/api/products`);
       if (response.ok) {
         const products = await response.json();
         const exists = products.some((p: any) => p.productCode.toLowerCase() === code.toLowerCase());
@@ -102,14 +103,14 @@ export default function CreateProductPage() {
 
   const fetchAvailableProducts = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/products');
+      const response = await fetch(`${API_BASE_URL}/api/products`);
       if (response.ok) {
         const products = await response.json();
         // Fetch product lines for each product
         const productsWithLines = await Promise.all(
           products.map(async (p: any) => {
             try {
-              const linesResponse = await fetch(`http://localhost:3000/api/products/${p.productNumber}/lines`);
+              const linesResponse = await fetch(`${API_BASE_URL}/api/products/${p.productNumber}/lines`);
               const lines = await linesResponse.json();
               return {
                 productNumber: p.productNumber,
@@ -441,7 +442,7 @@ export default function CreateProductPage() {
 
       console.log('Sending payload:', payload);
 
-      const response = await fetch('http://localhost:3000/api/products/batch', {
+      const response = await fetch(`${API_BASE_URL}/api/products/batch`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

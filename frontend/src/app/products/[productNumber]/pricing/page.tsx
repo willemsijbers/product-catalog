@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft, Plus, Save, Trash2 } from 'lucide-react';
+import { API_BASE_URL } from '@/lib/config';
 import type { Currency, PriceableItem, PriceBook } from '@/types/pricing';
 
 interface ProductLine {
@@ -76,7 +77,7 @@ export default function ProductPricingPage() {
 
   const fetchProduct = async (productNumber: string) => {
     try {
-      const response = await fetch(`http://localhost:3000/api/products/${productNumber}`);
+      const response = await fetch(`${API_BASE_URL}/api/products/${productNumber}`);
       if (response.ok) {
         const data = await response.json();
         setProduct(data);
@@ -90,7 +91,7 @@ export default function ProductPricingPage() {
 
   const fetchPriceBooks = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/price-books');
+      const response = await fetch(`${API_BASE_URL}/api/price-books`);
       if (response.ok) {
         const data = await response.json();
         setPriceBooks(data);
@@ -102,7 +103,7 @@ export default function ProductPricingPage() {
 
   const fetchExistingPricing = async (productNumber: string) => {
     try {
-      const response = await fetch(`http://localhost:3000/api/products/${productNumber}/pricing`);
+      const response = await fetch(`${API_BASE_URL}/api/products/${productNumber}/pricing`);
       if (response.ok) {
         const data = await response.json();
 
@@ -350,7 +351,7 @@ export default function ProductPricingPage() {
     }
 
     try {
-      const response = await fetch('http://localhost:3000/api/pricing/batch', {
+      const response = await fetch(`${API_BASE_URL}/api/pricing/batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(pricingData),
