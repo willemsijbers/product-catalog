@@ -73,7 +73,7 @@ export interface CreateProductInput {
 export interface CreateProductLineInput {
   name: string;
   lineType: LineType;
-  priceModel: PriceModel;
+  priceModel?: PriceModel;
   pricingTerm?: Term; // For recurring lines, "once" for one-time
   unitOfMeasure?: string; // For recurring and one-time lines
   isCurrency?: boolean; // For prepaid lines: true = dollar balance, false = credit-based (default)
