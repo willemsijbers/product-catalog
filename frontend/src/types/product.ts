@@ -66,6 +66,8 @@ export interface CreateProductInput {
   productFamily?: 'software' | 'hardware' | 'service' | 'bundle' | 'other';
   productType?: 'sub' | 'perpetual' | 'consumption' | 'other';
   productLines: CreateProductLineInput[];
+  isBundleProduct?: boolean;
+  bundleComponents?: BundleComponentInput[];
 }
 
 export interface CreateProductLineInput {
@@ -74,6 +76,7 @@ export interface CreateProductLineInput {
   priceModel: PriceModel;
   pricingTerm?: Term; // For recurring lines, "once" for one-time
   unitOfMeasure?: string; // For recurring and one-time lines
+  isCurrency?: boolean; // For prepaid lines: true = dollar balance, false = credit-based (default)
   hasUsage?: boolean;
   parentLine?: string;
   usageLine?: { // Nested usage line config when hasUsage is true
@@ -87,6 +90,7 @@ export interface CreateProductLineInput {
 export interface CreateRateCardEntryInput {
   usageType: UsageType;
   identifier?: string;
+  usageIsCurrency?: boolean; // true = usage input is a monetary amount (e.g. USD), UoM not applicable
   usageUnitOfMeasure?: string;
   billableUnitOfMeasure?: string;
   invoiceFrequency?: 'daily' | 'weekly' | 'monthly' | 'quarterly' | 'annually';
@@ -98,4 +102,34 @@ export interface CreateRateCardEntryInput {
   rolloverDuration?: number;
   maximumRolloverLimit?: number;
   expiration?: number;
+}
+
+// Bundle Component Types
+export interface BundleComponentInput {
+  bundleProductLineIndex: number;  // Index in productLines array
+  componentProductNumber: string;
+  componentProductLineNumber: string;
+  componentPricingLevel: 'parent' | 'component';
+  productLineType: 'recurring' | 'oneTime' | 'usage';
+  componentQuantity: number;
+  quantityDependency?: 'dependent' | 'independent';
+  allocationPercentage?: number;
+  discountPercentage?: number;
+  isOptional: boolean;
+  description?: string;
+}
+
+// Product with lines (for component selection)
+export interface ProductWithLines {
+  productNumber: string;
+  productCode: string;
+  productName: string;
+  productLines: ProductLineDetail[];
+}
+
+export interface ProductLineDetail {
+  productLineNumber: string;
+  name: string;
+  lineType: LineType;
+  priceModel: PriceModel;
 }

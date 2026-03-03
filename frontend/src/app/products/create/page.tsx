@@ -1411,32 +1411,53 @@ export default function CreateProductPage() {
                                                   </div>
                                                 ) : (
                                                   <>
-                                                    {/* Step 1: Usage Unit of Measure (what comes in) */}
-                                                    <div className="space-y-1">
-                                                      <Label className="text-xs">Usage Unit of Measure</Label>
-                                                      <Select
-                                                        value={entry.usageUnitOfMeasure || ''}
-                                                        onValueChange={(value) => updateRateCardEntry(index, entryIndex, 'usageUnitOfMeasure', value)}
-                                                      >
-                                                        <SelectTrigger className="h-8 text-xs">
-                                                          <SelectValue placeholder="Select" />
-                                                        </SelectTrigger>
-                                                        <SelectContent>
-                                                          <SelectItem value="each">Each</SelectItem>
-                                                          <SelectItem value="seat">Seat</SelectItem>
-                                                          <SelectItem value="user">User</SelectItem>
-                                                          <SelectItem value="gb">GB</SelectItem>
-                                                          <SelectItem value="tb">TB</SelectItem>
-                                                          <SelectItem value="hour">Hour</SelectItem>
-                                                          <SelectItem value="transaction">Transaction</SelectItem>
-                                                          <SelectItem value="apiCall">API Call</SelectItem>
-                                                          <SelectItem value="request">Request</SelectItem>
-                                                        </SelectContent>
-                                                      </Select>
+                                                    {/* Usage Unit of Measure with Currency toggle */}
+                                                    <div className="space-y-1 col-span-2">
+                                                      <div className="flex items-center gap-1.5">
+                                                        <input
+                                                          type="checkbox"
+                                                          id={`usage-currency-${index}-${entryIndex}`}
+                                                          checked={entry.usageIsCurrency || false}
+                                                          onChange={(e) => {
+                                                            updateRateCardEntry(index, entryIndex, 'usageIsCurrency', e.target.checked);
+                                                            if (e.target.checked) {
+                                                              updateRateCardEntry(index, entryIndex, 'usageUnitOfMeasure', undefined);
+                                                            }
+                                                          }}
+                                                          className="w-4 h-4 text-primary border-gray-300 rounded focus:ring-primary"
+                                                        />
+                                                        <Label htmlFor={`usage-currency-${index}-${entryIndex}`} className="text-xs font-medium cursor-pointer">
+                                                          Currency
+                                                        </Label>
+                                                      </div>
+                                                      {!entry.usageIsCurrency && (
+                                                        <div className="space-y-1 ml-6">
+                                                          <Label className="text-xs text-muted-foreground">Usage Unit of Measure</Label>
+                                                          <Select
+                                                            value={entry.usageUnitOfMeasure || ''}
+                                                            onValueChange={(value) => updateRateCardEntry(index, entryIndex, 'usageUnitOfMeasure', value)}
+                                                          >
+                                                            <SelectTrigger className="h-8 text-xs">
+                                                              <SelectValue placeholder="Select" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                              <SelectItem value="each">Each</SelectItem>
+                                                              <SelectItem value="seat">Seat</SelectItem>
+                                                              <SelectItem value="user">User</SelectItem>
+                                                              <SelectItem value="gb">GB</SelectItem>
+                                                              <SelectItem value="tb">TB</SelectItem>
+                                                              <SelectItem value="hour">Hour</SelectItem>
+                                                              <SelectItem value="transaction">Transaction</SelectItem>
+                                                              <SelectItem value="apiCall">API Call</SelectItem>
+                                                              <SelectItem value="request">Request</SelectItem>
+                                                            </SelectContent>
+                                                          </Select>
+                                                        </div>
+                                                      )}
                                                     </div>
                                                     {/* Step 2: Conversion Factor (how to convert) */}
                                                     <div className="space-y-1">
-                                                      <Label className="text-xs">Conversion Factor</Label>
+                                                      <Label className="text-xs">Conversion</Label>
                                                       <Input
                                                         className="h-8 text-xs"
                                                         type="number"
@@ -1444,13 +1465,12 @@ export default function CreateProductPage() {
                                                         value={entry.conversion ?? 1}
                                                         onChange={(e) => updateRateCardEntry(index, entryIndex, 'conversion', parseFloat(e.target.value))}
                                                         placeholder="1.0"
-                                                        disabled={entry.usageType === 'consumption' && line.lineType === 'prepaid'}
                                                       />
-                                                      {entry.usageType === 'consumption' && line.lineType === 'prepaid' && (
-                                                        <p className="text-xs text-muted-foreground">
-                                                          No conversion (1:1 ratio)
-                                                        </p>
-                                                      )}
+                                                      <p className="text-xs text-muted-foreground">
+                                                        {entry.usageIsCurrency
+                                                          ? 'e.g. 1.4 = $1.40 per credit'
+                                                          : 'e.g. 0.1 = 1 credit per 10 GB'}
+                                                      </p>
                                                     </div>
                                                     {/* Step 3: Billable Unit of Measure (what gets billed) */}
                                                     <div className="space-y-1">

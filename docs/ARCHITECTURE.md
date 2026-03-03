@@ -326,16 +326,72 @@ The Product Catalog supports 7 distinct line types, each with specific configura
 **Example:** API calls at $0.001 per request with 10,000 included allowance
 
 ### 4. Prepaid Line
-**Use Case:** Prepaid credits, advance purchase of consumption
+**Use Case:** Prepaid credits/balance, advance purchase of consumption
 
 **Configuration:**
 - **Price Model:** 🔒 **Fixed to Per Unit**
 - **Pricing Term:** 🔒 **Fixed to Once**
-- **Unit of Measure:** 🔒 **Fixed to Credit**
+- **Unit of Measure:** 🔄 **Conditional** (see below)
 - **Has Usage:** 🔒 **Always True** (required for tracking consumption)
-- **Usage Line:** Auto-created (tracks credit consumption)
+- **Currency Balance:** ✅ **Optional toggle** (determines mode)
+- **Usage Line:** Auto-created (tracks consumption)
 
-**Example:** 1,000 prepaid credits at $100, consumed over time
+**Two Models Supported:**
+
+1. **Credit-Based Prepaid (isCurrency = false):**
+   - unitOfMeasure: "credit" (locked)
+   - billableUnitOfMeasure: "credit"
+   - Purchase credits at a price per credit
+   - Example: 1,000 credits @ $0.10/credit = $100 prepaid
+   - Usage consumes credits directly (conversion = 1, no conversion)
+   - **When to use:** Tokens, phone minutes, game credits, etc.
+
+2. **Currency-Based Prepaid (isCurrency = true):**
+   - unitOfMeasure: N/A (not applicable)
+   - billableUnitOfMeasure: N/A (undefined)
+   - Add dollar/euro/pound balance directly
+   - Example: $10,000 USD prepaid balance (10,000 units @ $1/unit)
+   - Usage deducts currency directly (conversion = 1, no conversion)
+   - **When to use:** Prepaid wallets, advance payments, dollar balances
+
+**Key Field: isCurrency Checkbox**
+- ❌ Unchecked (default): Credit-based, unitOfMeasure = "credit"
+- ✅ Checked: Currency-based, unitOfMeasure = N/A
+
+**Critical Rule:**
+The consumption entry's `billableUnitOfMeasure` **MUST ALWAYS match** the parent prepaid line's `unitOfMeasure`. This ensures consumption draws down in the same unit as the balance:
+- Credit-based: parent UoM = "credit" → consumption billableUoM = "credit"
+- Currency-based: parent UoM = N/A (currency) → consumption billableUoM = N/A (currency)
+
+**Example - Credit-Based:**
+```
+Parent Line:
+  isCurrency: false
+  unitOfMeasure: "credit"
+  Purchase: 1,000 credits @ $0.10/credit = $100
+
+Consumption Entry:
+  usageType: "consumption"
+  usageUnitOfMeasure: "apiCall" (user configures)
+  billableUnitOfMeasure: "credit"
+  conversion: 1 (no conversion, 1:1 ratio)
+  Result: 100 API calls consumed = 100 credits deducted
+```
+
+**Example - Currency-Based:**
+```
+Parent Line:
+  isCurrency: true
+  unitOfMeasure: N/A
+  Purchase: 10,000 units @ $1/unit = $10,000
+
+Consumption Entry:
+  usageType: "consumption"
+  usageUnitOfMeasure: "apiCall" (user configures)
+  billableUnitOfMeasure: N/A (undefined)
+  conversion: 1 (no conversion, 1:1 ratio)
+  Result: 100 API calls consumed = 100 currency units ($100) deducted
+```
 
 ### 5. Billable Time Line
 **Use Case:** Professional services hours (consulting, development, support)
@@ -377,14 +433,17 @@ The Product Catalog supports 7 distinct line types, each with specific configura
 | **Recurring**          | ✅ Selectable     | ✅ Pricing Term             | ✅ Optional     | ✅ Optional |
 | **One-Time**           | 🔒 Per Unit       | 🔒 Once                     | ✅ Required     | ❌ No       |
 | **Usage**              | 🔒 Rate Card      | ❌ N/A                      | ❌ N/A          | ❌ No       |
-| **Prepaid**            | 🔒 Per Unit       | 🔒 Once                     | 🔒 Credit       | 🔒 Yes      |
+| **Prepaid**            | 🔒 Per Unit       | 🔒 Once                     | 🔄 Conditional* | 🔒 Yes      |
 | **Billable Time**      | ✅ Selectable     | ✅ Invoice Frequency        | 🔒 Hour         | ❌ No       |
 | **Travel Expense**     | ❌ None           | ✅ Invoice Frequency        | ❌ None         | ❌ No       |
 | **Pass-Through**       | ❌ None           | ✅ Invoice Frequency        | ❌ None         | ❌ No       |
 
+*Conditional: "Credit" if isCurrency=false, N/A if isCurrency=true
+
 **Legend:**
 - ✅ User configurable
 - 🔒 System-controlled (auto-set or fixed value)
+- 🔄 Conditional (depends on other settings)
 - ❌ Not applicable
 
 ### Commit/Overage Pattern (Recurring + Usage)

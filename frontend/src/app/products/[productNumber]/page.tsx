@@ -121,7 +121,11 @@ export default function ProductDetailPage() {
     if (lineType === 'oneTime') return 'One-Time';
     if (lineType === 'recurring') return 'Recurring';
     if (lineType === 'usage') return 'Usage';
-    return lineType;
+    if (lineType === 'prepaid') return 'Prepaid';
+    if (lineType === 'billableTime') return 'Billable Time';
+    if (lineType === 'billableTravelExpense') return 'Billable Travel Expense';
+    if (lineType === 'billablePassThrough') return 'Billable Pass-Through';
+    return lineType.charAt(0).toUpperCase() + lineType.slice(1);
   };
 
   const formatPricingTerm = (term?: string) => {

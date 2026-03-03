@@ -162,25 +162,25 @@ export default function ProductPricingPage() {
     const items: PriceableItem[] = [];
 
     product.productLines.forEach(line => {
-      // One-time and Recurring lines are directly priceable
-      if (line.lineType === 'oneTime' || line.lineType === 'recurring') {
+      // One-time, Recurring, and Prepaid lines are directly priceable
+      if (line.lineType === 'oneTime' || line.lineType === 'recurring' || line.lineType === 'prepaid') {
         items.push({
           productLineNumber: line.productLineNumber,
           name: line.name,
-          lineType: line.lineType as 'oneTime' | 'recurring',
+          lineType: line.lineType as 'oneTime' | 'recurring' | 'prepaid',
           priceModel: line.priceModel,
         });
       }
 
-      // Usage lines with PAYG, Prepaid, or Overage are priceable
+      // Usage lines with PAYG or Overage are priceable
       if (line.lineType === 'usage' && line.rateCardEntries) {
         line.rateCardEntries.forEach(entry => {
-          if (['PAYG', 'prepaid', 'overage'].includes(entry.usageType)) {
+          if (['PAYG', 'overage'].includes(entry.usageType)) {
             items.push({
               productLineNumber: line.productLineNumber,
               name: `${line.name} - ${formatUsageType(entry.usageType)}`,
               lineType: 'usage',
-              usageType: entry.usageType as 'PAYG' | 'prepaid' | 'overage',
+              usageType: entry.usageType as 'PAYG' | 'overage',
               rateCardEntryNumber: entry.rateCardEntryNumber,
               unitOfMeasure: entry.usageUnitOfMeasure,
               priceModel: entry.priceModel || 'perUnit', // Rate card entries have their own price model
@@ -207,7 +207,11 @@ export default function ProductPricingPage() {
     if (lineType === 'oneTime') return 'One-Time';
     if (lineType === 'recurring') return 'Recurring';
     if (lineType === 'usage') return 'Usage';
-    return lineType;
+    if (lineType === 'prepaid') return 'Prepaid';
+    if (lineType === 'billableTime') return 'Billable Time';
+    if (lineType === 'billableTravelExpense') return 'Billable Travel Expense';
+    if (lineType === 'billablePassThrough') return 'Billable Pass-Through';
+    return lineType.charAt(0).toUpperCase() + lineType.slice(1);
   };
 
   // Check if an item supports tiered pricing
