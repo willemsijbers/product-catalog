@@ -17,7 +17,7 @@ export type UsageType =
   | 'allowance'
   | 'overage';
 
-export type Term = 'daily' | 'monthly' | 'quarterly' | 'annually';
+export type Term = 'daily' | 'monthly' | 'quarterly' | 'annually' | 'once';
 
 export interface Product {
   productNumber: string;
